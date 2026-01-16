@@ -1,0 +1,17 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: mustgather-noupload-template
+objects:
+  - apiVersion: operator.openshift.io/v1alpha1
+    kind: MustGather
+    metadata:
+      name: "${NAME}"
+      namespace: "${NAMESPACE}"
+    spec:
+      serviceAccountName: "${SA}"
+parameters:
+  - name: NAME
+  - name: NAMESPACE
+  - name: SA
+    value: "must-gather-operator"
