@@ -1,4 +1,4 @@
-module netobserv
+module github.com/network-observability-operator/integration-tests/backend
 
 go 1.25.1
 
