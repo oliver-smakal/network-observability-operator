@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	lokiv1 "github.com/grafana/loki/operator/apis/loki/v1"
 	osv1 "github.com/openshift/api/console/v1"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"gopkg.in/yaml.v2"
@@ -28,6 +29,7 @@ import (
 	"github.com/netobserv/network-observability-operator/internal/pkg/helper"
 	"github.com/netobserv/network-observability-operator/internal/pkg/helper/loki"
 	"github.com/netobserv/network-observability-operator/internal/pkg/metrics"
+	"github.com/netobserv/network-observability-operator/internal/pkg/metrics/alerts"
 	"github.com/netobserv/network-observability-operator/internal/pkg/volumes"
 )
 
@@ -123,7 +125,7 @@ func (b *builder) serviceMonitor() *monitoringv1.ServiceMonitor {
 				{
 					Port:     metricsPortName,
 					Interval: "15s",
-					Scheme:   "https",
+					Scheme:   ptr.To(monitoringv1.Scheme("https")),
 					TLSConfig: &monitoringv1.TLSConfig{
 						SafeTLSConfig: monitoringv1.SafeTLSConfig{
 							ServerName: ptr.To(serverName),
@@ -498,12 +500,46 @@ func (b *builder) setFrontendConfig(fconf *cfg.FrontendConfig) error {
 	if b.desired.Processor.IsSubnetLabelsEnabled() {
 		fconf.Features = append(fconf.Features, "subnetLabels")
 	}
+
+	// Add health rules metadata for frontend
+	fconf.RecordingAnnotations = b.getHealthRecordingAnnotations()
+
 	return nil
+}
+
+func (b *builder) getHealthRecordingAnnotations() map[string]map[string]string {
+	annotsPerRecording := make(map[string]map[string]string)
+	healthRules, _ := alerts.BuildHealthRules(b.desired)
+	for _, r := range healthRules {
+		rname := r.RecordingName()
+		if rname != "" {
+			if a, _ := r.GetAnnotations(); len(a) > 0 {
+				annotsPerRecording[rname] = a
+			}
+		}
+	}
+	return annotsPerRecording
+}
+
+func getLokiStatus(lokiStack *lokiv1.LokiStack) string {
+	if lokiStack == nil {
+		// This case should not happen
+		return ""
+	}
+	for _, conditions := range lokiStack.Status.Conditions {
+		if conditions.Reason == "ReadyComponents" {
+			if conditions.Status == "True" {
+				return "ready"
+			}
+			break
+		}
+	}
+	return "pending"
 }
 
 // returns a configmap with a digest of its configuration contents, which will be used to
 // detect any configuration change
-func (b *builder) configMap(ctx context.Context) (*corev1.ConfigMap, string, error) {
+func (b *builder) configMap(ctx context.Context, lokiStack *lokiv1.LokiStack) (*corev1.ConfigMap, string, error) {
 	config := cfg.PluginConfig{
 		Server: cfg.ServerConfig{
 			Port: int(*b.advanced.Port),
@@ -519,6 +555,10 @@ func (b *builder) configMap(ctx context.Context) (*corev1.ConfigMap, string, err
 	// configure loki
 	var err error
 	config.Loki, err = b.getLokiConfig()
+	if lokiStack != nil {
+		config.Loki.Status = getLokiStatus(lokiStack)
+		config.Loki.StatusURL = ""
+	}
 	if err != nil {
 		return nil, "", err
 	}

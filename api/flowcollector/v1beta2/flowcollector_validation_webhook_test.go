@@ -592,17 +592,17 @@ func TestValidateFLP(t *testing.T) {
 				Spec: FlowCollectorSpec{
 					Processor: FlowCollectorFLP{
 						Metrics: FLPMetrics{
-							Alerts: &[]FLPAlert{
+							HealthRules: &[]FLPHealthRule{
 								{
-									Template: AlertPacketDropsByKernel,
-									Variants: []AlertVariant{},
+									Template: HealthRulePacketDropsByKernel,
+									Variants: []HealthRuleVariant{},
 								},
 							},
 						},
 					},
 				},
 			},
-			expectedWarnings: admission.Warnings{"Alert PacketDropsByKernel requires the PacketDrop agent feature to be enabled"},
+			expectedWarnings: admission.Warnings{"HealthRule PacketDropsByKernel requires the PacketDrop agent feature to be enabled"},
 		},
 		{
 			name:       "No missing metrics for alerts by default",
@@ -615,13 +615,13 @@ func TestValidateFLP(t *testing.T) {
 					}},
 					Processor: FlowCollectorFLP{
 						Metrics: FLPMetrics{
-							Alerts: &[]FLPAlert{
+							HealthRules: &[]FLPHealthRule{
 								{
-									Template: AlertPacketDropsByKernel,
-									Variants: []AlertVariant{
+									Template: HealthRulePacketDropsByKernel,
+									Variants: []HealthRuleVariant{
 										{
 											GroupBy: GroupByNode,
-											Thresholds: AlertThresholds{
+											Thresholds: HealthRuleThresholds{
 												Info: "5.5",
 											},
 										},
@@ -644,28 +644,28 @@ func TestValidateFLP(t *testing.T) {
 					}},
 					Processor: FlowCollectorFLP{
 						Metrics: FLPMetrics{
-							Alerts: &[]FLPAlert{
+							HealthRules: &[]FLPHealthRule{
 								{
-									Template: AlertPacketDropsByKernel,
-									Variants: []AlertVariant{
+									Template: HealthRulePacketDropsByKernel,
+									Variants: []HealthRuleVariant{
 										{
 											GroupBy: GroupByNode,
-											Thresholds: AlertThresholds{
+											Thresholds: HealthRuleThresholds{
 												Info: "5",
 											},
 										},
 									},
 								},
 							},
-							DisableAlerts: []AlertTemplate{AlertExternalEgressHighTrend, AlertExternalIngressHighTrend},
+							DisableAlerts: []AlertTemplate{HealthRuleExternalEgressHighTrend, HealthRuleExternalIngressHighTrend},
 							IncludeList:   &[]FLPMetric{"node_ingress_bytes_total"},
 						},
 					},
 				},
 			},
 			expectedWarnings: admission.Warnings{
-				"Alert PacketDropsByKernel/Node requires enabling at least one metric from this list: node_drop_packets_total",
-				"Alert PacketDropsByKernel/Node requires enabling at least one metric from this list: node_ingress_packets_total, node_egress_packets_total",
+				"HealthRule PacketDropsByKernel/Node requires enabling at least one metric from this list: node_drop_packets_total",
+				"HealthRule PacketDropsByKernel/Node requires enabling at least one metric from this list: node_ingress_packets_total, node_egress_packets_total",
 			},
 		},
 		{
@@ -679,25 +679,25 @@ func TestValidateFLP(t *testing.T) {
 					}},
 					Processor: FlowCollectorFLP{
 						Metrics: FLPMetrics{
-							Alerts: &[]FLPAlert{
+							HealthRules: &[]FLPHealthRule{
 								{
-									Template: AlertPacketDropsByKernel,
-									Variants: []AlertVariant{
+									Template: HealthRulePacketDropsByKernel,
+									Variants: []HealthRuleVariant{
 										{
-											Thresholds: AlertThresholds{
+											Thresholds: HealthRuleThresholds{
 												Info: "nope",
 											},
 										},
 									},
 								},
 							},
-							DisableAlerts: []AlertTemplate{AlertExternalEgressHighTrend, AlertExternalIngressHighTrend},
+							DisableAlerts: []AlertTemplate{HealthRuleExternalEgressHighTrend, HealthRuleExternalIngressHighTrend},
 							IncludeList:   &[]FLPMetric{"node_drop_packets_total", "node_ingress_packets_total"},
 						},
 					},
 				},
 			},
-			expectedError: `cannot parse info threshold as float in spec.processor.metrics.alerts[0].variants[0]: "nope"`,
+			expectedError: `cannot parse info threshold as float in spec.processor.metrics.healthRules[0].variants[0]: "nope"`,
 		},
 		{
 			name:       "Invalid alert threshold severities",
@@ -710,12 +710,12 @@ func TestValidateFLP(t *testing.T) {
 					}},
 					Processor: FlowCollectorFLP{
 						Metrics: FLPMetrics{
-							Alerts: &[]FLPAlert{
+							HealthRules: &[]FLPHealthRule{
 								{
-									Template: AlertPacketDropsByKernel,
-									Variants: []AlertVariant{
+									Template: HealthRulePacketDropsByKernel,
+									Variants: []HealthRuleVariant{
 										{
-											Thresholds: AlertThresholds{
+											Thresholds: HealthRuleThresholds{
 												Info:     "5",
 												Warning:  "50",
 												Critical: "10",
@@ -724,13 +724,141 @@ func TestValidateFLP(t *testing.T) {
 									},
 								},
 							},
-							DisableAlerts: []AlertTemplate{AlertExternalEgressHighTrend, AlertExternalIngressHighTrend},
+							DisableAlerts: []AlertTemplate{HealthRuleExternalEgressHighTrend, HealthRuleExternalIngressHighTrend},
 							IncludeList:   &[]FLPMetric{"node_drop_packets_total", "node_ingress_packets_total"},
 						},
 					},
 				},
 			},
 			expectedError: `warning threshold must be lower than 10, which is defined for a higher severity`,
+		},
+		{
+			name:       "Missing thresholds in recording mode",
+			ocpVersion: "4.18.0",
+			fc: &FlowCollector{
+				Spec: FlowCollectorSpec{
+					Agent: FlowCollectorAgent{EBPF: FlowCollectorEBPF{
+						Features:   []AgentFeature{DNSTracking},
+						Privileged: false,
+					}},
+					Processor: FlowCollectorFLP{
+						Metrics: FLPMetrics{
+							HealthRules: &[]FLPHealthRule{
+								{
+									Template: HealthRuleDNSErrors,
+									Mode:     ModeRecording,
+									Variants: []HealthRuleVariant{
+										{
+											Thresholds: HealthRuleThresholds{},
+										},
+									},
+								},
+							},
+							DisableAlerts: []AlertTemplate{HealthRuleExternalEgressHighTrend, HealthRuleExternalIngressHighTrend},
+							IncludeList:   &[]FLPMetric{"namespace_dns_latency_seconds"},
+						},
+					},
+				},
+			},
+			expectedError: `at least one threshold (critical, warning, or info) must be provided in spec.processor.metrics.healthRules[0].variants[0]`,
+		},
+		{
+			name:       "Valid recording mode with thresholds",
+			ocpVersion: "4.18.0",
+			fc: &FlowCollector{
+				Spec: FlowCollectorSpec{
+					Agent: FlowCollectorAgent{EBPF: FlowCollectorEBPF{
+						Features:   []AgentFeature{DNSTracking},
+						Privileged: false,
+					}},
+					Processor: FlowCollectorFLP{
+						Metrics: FLPMetrics{
+							HealthRules: &[]FLPHealthRule{
+								{
+									Template: HealthRuleDNSErrors,
+									Mode:     ModeRecording,
+									Variants: []HealthRuleVariant{
+										{
+											Thresholds: HealthRuleThresholds{
+												Critical: "15",
+												Warning:  "10",
+												Info:     "5",
+											},
+										},
+									},
+								},
+							},
+							DisableAlerts: []AlertTemplate{HealthRuleExternalEgressHighTrend, HealthRuleExternalIngressHighTrend},
+							IncludeList:   &[]FLPMetric{"namespace_dns_latency_seconds"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:       "Valid variant mode override - Alert health rule with Recording variant",
+			ocpVersion: "4.18.0",
+			fc: &FlowCollector{
+				Spec: FlowCollectorSpec{
+					Agent: FlowCollectorAgent{EBPF: FlowCollectorEBPF{
+						Features:   []AgentFeature{PacketDrop},
+						Privileged: true,
+					}},
+					Processor: FlowCollectorFLP{
+						Metrics: FLPMetrics{
+							HealthRules: &[]FLPHealthRule{
+								{
+									Template: HealthRulePacketDropsByKernel,
+									Mode:     ModeAlert, // Parent mode is Alert
+									Variants: []HealthRuleVariant{
+										{
+											GroupBy: GroupByNode,
+											Mode:    ptr.To(ModeRecording), // Variant overrides to Recording
+											Thresholds: HealthRuleThresholds{
+												Critical: "10",
+												Warning:  "5",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:       "Valid variant mode override - Recording health rule with Alert variant",
+			ocpVersion: "4.18.0",
+			fc: &FlowCollector{
+				Spec: FlowCollectorSpec{
+					Agent: FlowCollectorAgent{EBPF: FlowCollectorEBPF{
+						Features:   []AgentFeature{DNSTracking},
+						Privileged: false,
+					}},
+					Processor: FlowCollectorFLP{
+						Metrics: FLPMetrics{
+							HealthRules: &[]FLPHealthRule{
+								{
+									Template: HealthRuleDNSErrors,
+									Mode:     ModeRecording, // Parent mode is Recording
+									Variants: []HealthRuleVariant{
+										{
+											Mode: ptr.To(ModeAlert), // Variant overrides to Alert
+											Thresholds: HealthRuleThresholds{
+												Warning: "10",
+												Info:    "5",
+											},
+										},
+									},
+								},
+							},
+							DisableAlerts: []AlertTemplate{HealthRuleExternalEgressHighTrend, HealthRuleExternalIngressHighTrend},
+							IncludeList:   &[]FLPMetric{"namespace_dns_latency_seconds"},
+						},
+					},
+				},
+			},
 		},
 	}
 
@@ -908,25 +1036,25 @@ func TestValidateScheduling(t *testing.T) {
 }
 
 func TestElligibleMetrics(t *testing.T) {
-	met, tot := GetElligibleMetricsForAlert(AlertPacketDropsByKernel, &AlertVariant{
+	met, tot := GetElligibleMetricsForHealthRule(HealthRulePacketDropsByKernel, &HealthRuleVariant{
 		GroupBy: GroupByNamespace,
 	})
 	assert.Equal(t, []string{"namespace_drop_packets_total", "workload_drop_packets_total"}, met)
 	assert.Equal(t, []string{"namespace_ingress_packets_total", "workload_ingress_packets_total", "namespace_egress_packets_total", "workload_egress_packets_total"}, tot)
 
-	met, tot = GetElligibleMetricsForAlert(AlertPacketDropsByKernel, &AlertVariant{
+	met, tot = GetElligibleMetricsForHealthRule(HealthRulePacketDropsByKernel, &HealthRuleVariant{
 		GroupBy: GroupByWorkload,
 	})
 	assert.Equal(t, []string{"workload_drop_packets_total"}, met)
 	assert.Equal(t, []string{"workload_ingress_packets_total", "workload_egress_packets_total"}, tot)
 
-	met, tot = GetElligibleMetricsForAlert(AlertPacketDropsByKernel, &AlertVariant{
+	met, tot = GetElligibleMetricsForHealthRule(HealthRulePacketDropsByKernel, &HealthRuleVariant{
 		GroupBy: GroupByNode,
 	})
 	assert.Equal(t, []string{"node_drop_packets_total"}, met)
 	assert.Equal(t, []string{"node_ingress_packets_total", "node_egress_packets_total"}, tot)
 
-	met, tot = GetElligibleMetricsForAlert(AlertPacketDropsByKernel, &AlertVariant{})
+	met, tot = GetElligibleMetricsForHealthRule(HealthRulePacketDropsByKernel, &HealthRuleVariant{})
 	assert.Equal(t, []string{"namespace_drop_packets_total", "workload_drop_packets_total", "node_drop_packets_total"}, met)
 	assert.Equal(t, []string{"namespace_ingress_packets_total", "workload_ingress_packets_total", "node_ingress_packets_total", "namespace_egress_packets_total", "workload_egress_packets_total", "node_egress_packets_total"}, tot)
 }
@@ -1021,5 +1149,54 @@ func TestValidateNetPol(t *testing.T) {
 			assert.ErrorContains(t, v.errors[0], test.expectedError, test.name)
 		}
 		assert.Equal(t, test.expectedWarnings, v.warnings, test.name)
+	}
+}
+
+func TestHealthRuleVariant_GetMode(t *testing.T) {
+	tests := []struct {
+		name         string
+		variant      HealthRuleVariant
+		parentMode   HealthRuleMode
+		expectedMode HealthRuleMode
+	}{
+		{
+			name: "Variant mode is nil - inherits parent Alert",
+			variant: HealthRuleVariant{
+				Mode: nil,
+			},
+			parentMode:   ModeAlert,
+			expectedMode: ModeAlert,
+		},
+		{
+			name: "Variant mode is nil - inherits parent Recording",
+			variant: HealthRuleVariant{
+				Mode: nil,
+			},
+			parentMode:   ModeRecording,
+			expectedMode: ModeRecording,
+		},
+		{
+			name: "Variant overrides to Recording",
+			variant: HealthRuleVariant{
+				Mode: ptr.To(ModeRecording),
+			},
+			parentMode:   ModeAlert,
+			expectedMode: ModeRecording,
+		},
+		{
+			name: "Variant overrides to Alert",
+			variant: HealthRuleVariant{
+				Mode: ptr.To(ModeAlert),
+			},
+			parentMode:   ModeRecording,
+			expectedMode: ModeAlert,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.variant.GetMode(tt.parentMode)
+			assert.Equal(t, tt.expectedMode, result)
+		})
 	}
 }

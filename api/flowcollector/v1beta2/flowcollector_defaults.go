@@ -4,6 +4,7 @@ import (
 	"time"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 )
 
 var (
@@ -45,12 +46,13 @@ var (
 		"node_ipsec_flows_total",
 		"node_to_node_ingress_flows_total",
 	}
-	DefaultAlerts = []FLPAlert{
+	DefaultHealthRules = []FLPHealthRule{
 		{
-			Template: AlertPacketDropsByKernel,
-			Variants: []AlertVariant{
+			Template: HealthRulePacketDropsByKernel,
+			Mode:     ModeRecording,
+			Variants: []HealthRuleVariant{
 				{
-					Thresholds: AlertThresholds{
+					Thresholds: HealthRuleThresholds{
 						Info:    "10",
 						Warning: "20",
 					},
@@ -58,7 +60,20 @@ var (
 					GroupBy:            GroupByNamespace,
 				},
 				{
-					Thresholds: AlertThresholds{
+					Mode: ptr.To(ModeRecording),
+					Thresholds: HealthRuleThresholds{
+						Info:    "5",
+						Warning: "15",
+					},
+					GroupBy: GroupByNode,
+				},
+			},
+		},
+		{
+			Template: HealthRulePacketDropsByDevice,
+			Variants: []HealthRuleVariant{
+				{
+					Thresholds: HealthRuleThresholds{
 						Info:    "5",
 						Warning: "10",
 					},
@@ -67,42 +82,31 @@ var (
 			},
 		},
 		{
-			Template: AlertPacketDropsByDevice,
-			Variants: []AlertVariant{
+			Template: HealthRuleIPsecErrors,
+			Variants: []HealthRuleVariant{
 				{
-					Thresholds: AlertThresholds{
-						Warning: "5",
+					Thresholds: HealthRuleThresholds{
+						Warning: "2",
+					},
+				},
+				{
+					Thresholds: HealthRuleThresholds{
+						Warning: "2",
 					},
 					GroupBy: GroupByNode,
 				},
 			},
 		},
 		{
-			Template: AlertIPsecErrors,
-			Variants: []AlertVariant{
+			Template: HealthRuleDNSErrors,
+			Variants: []HealthRuleVariant{
 				{
-					Thresholds: AlertThresholds{
-						Critical: "2",
-					},
-				},
-				{
-					Thresholds: AlertThresholds{
-						Critical: "2",
-					},
-					GroupBy: GroupByNode,
-				},
-			},
-		},
-		{
-			Template: AlertDNSErrors,
-			Variants: []AlertVariant{
-				{
-					Thresholds: AlertThresholds{
+					Thresholds: HealthRuleThresholds{
 						Warning: "5",
 					},
 				},
 				{
-					Thresholds: AlertThresholds{
+					Thresholds: HealthRuleThresholds{
 						Info:    "5",
 						Warning: "10",
 					},
@@ -111,10 +115,11 @@ var (
 			},
 		},
 		{
-			Template: AlertDNSNxDomain,
-			Variants: []AlertVariant{
+			Template: HealthRuleDNSNxDomain,
+			Mode:     ModeRecording,
+			Variants: []HealthRuleVariant{
 				{
-					Thresholds: AlertThresholds{
+					Thresholds: HealthRuleThresholds{
 						Info:    "10",
 						Warning: "80",
 					},
@@ -123,10 +128,11 @@ var (
 			},
 		},
 		{
-			Template: AlertNetpolDenied,
-			Variants: []AlertVariant{
+			Template: HealthRuleNetpolDenied,
+			Mode:     ModeRecording,
+			Variants: []HealthRuleVariant{
 				{
-					Thresholds: AlertThresholds{
+					Thresholds: HealthRuleThresholds{
 						Info:    "5",
 						Warning: "10",
 					},
@@ -135,10 +141,11 @@ var (
 			},
 		},
 		{
-			Template: AlertLatencyHighTrend,
-			Variants: []AlertVariant{
+			Template: HealthRuleLatencyHighTrend,
+			Mode:     ModeRecording,
+			Variants: []HealthRuleVariant{
 				{
-					Thresholds: AlertThresholds{
+					Thresholds: HealthRuleThresholds{
 						Info: "100",
 					},
 					GroupBy:       GroupByNamespace,
@@ -148,10 +155,11 @@ var (
 			},
 		},
 		{
-			Template: AlertExternalEgressHighTrend,
-			Variants: []AlertVariant{
+			Template: HealthRuleExternalEgressHighTrend,
+			Mode:     ModeRecording,
+			Variants: []HealthRuleVariant{
 				{
-					Thresholds: AlertThresholds{
+					Thresholds: HealthRuleThresholds{
 						Warning: "200",
 					},
 					GroupBy:       GroupByNode,
@@ -159,7 +167,7 @@ var (
 					TrendDuration: &v1.Duration{Duration: time.Hour},
 				},
 				{
-					Thresholds: AlertThresholds{
+					Thresholds: HealthRuleThresholds{
 						Info:    "100",
 						Warning: "500",
 					},
@@ -170,10 +178,11 @@ var (
 			},
 		},
 		{
-			Template: AlertExternalIngressHighTrend,
-			Variants: []AlertVariant{
+			Template: HealthRuleExternalIngressHighTrend,
+			Mode:     ModeRecording,
+			Variants: []HealthRuleVariant{
 				{
-					Thresholds: AlertThresholds{
+					Thresholds: HealthRuleThresholds{
 						Warning: "200",
 					},
 					GroupBy:       GroupByNode,
@@ -181,9 +190,37 @@ var (
 					TrendDuration: &v1.Duration{Duration: time.Hour},
 				},
 				{
-					Thresholds: AlertThresholds{
+					Thresholds: HealthRuleThresholds{
 						Info:    "100",
 						Warning: "500",
+					},
+					GroupBy:       GroupByNamespace,
+					TrendOffset:   &v1.Duration{Duration: 24 * time.Hour},
+					TrendDuration: &v1.Duration{Duration: time.Hour},
+				},
+			},
+		},
+		{
+			Template: HealthRuleIngress5xxErrors,
+			Mode:     ModeRecording,
+			Variants: []HealthRuleVariant{
+				{
+					Thresholds: HealthRuleThresholds{
+						Info:    "5",
+						Warning: "10",
+					},
+					GroupBy: GroupByNamespace,
+				},
+			},
+		},
+		{
+			Template: HealthRuleIngressHTTPLatencyTrend,
+			Mode:     ModeRecording,
+			Variants: []HealthRuleVariant{
+				{
+					Thresholds: HealthRuleThresholds{
+						Info:    "100",
+						Warning: "200",
 					},
 					GroupBy:       GroupByNamespace,
 					TrendOffset:   &v1.Duration{Duration: 24 * time.Hour},

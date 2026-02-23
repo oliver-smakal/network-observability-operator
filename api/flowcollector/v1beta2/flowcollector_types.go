@@ -333,18 +333,18 @@ type FlowCollectorEBPF struct {
 	//+optional
 	Sampling *int32 `json:"sampling,omitempty"`
 
-	// `cacheActiveTimeout` is the max period during which the reporter aggregates flows before sending.
+	// `cacheActiveTimeout` is the period during which the agent aggregates flows before sending.
 	// Increasing `cacheMaxFlows` and `cacheActiveTimeout` can decrease the network traffic overhead and the CPU load,
 	// however you can expect higher memory consumption and an increased latency in the flow collection.
 	//+kubebuilder:validation:Pattern:=^\d+(ns|ms|s|m)?$
-	//+kubebuilder:default:="5s"
+	//+kubebuilder:default:="15s"
 	CacheActiveTimeout string `json:"cacheActiveTimeout,omitempty"`
 
-	// `cacheMaxFlows` is the max number of flows in an aggregate; when reached, the reporter sends the flows.
+	// `cacheMaxFlows` is the maximum number of flows in an aggregate; when reached, the reporter sends the flows.
 	// Increasing `cacheMaxFlows` and `cacheActiveTimeout` can decrease the network traffic overhead and the CPU load,
 	// however you can expect higher memory consumption and an increased latency in the flow collection.
 	//+kubebuilder:validation:Minimum=1
-	//+kubebuilder:default:=100000
+	//+kubebuilder:default:=120000
 	CacheMaxFlows int32 `json:"cacheMaxFlows,omitempty"`
 
 	// `interfaces` contains the interface names from where flows are collected. If empty, the agent
@@ -446,6 +446,12 @@ type FlowCollectorIPFIXReceiver struct {
 	// +kubebuilder:validation:Enum:="TCP";"UDP"
 	// +optional
 	Transport string `json:"transport,omitempty"`
+
+	// EnterpriseID, or Private Enterprise Number (PEN). To date, NetObserv does not own an assigned number,
+	// so it is left open for configuration. The PEN is needed to collect non standard data, such as Kubernetes names,
+	// RTT, etc.
+	// +kubebuilder:default:=2
+	EnterpriseID int `json:"enterpriseID"`
 }
 
 type FlowCollectorOpenTelemetryLogs struct {
@@ -582,15 +588,16 @@ type FLPMetrics struct {
 
 	// `disableAlerts` is a list of alert groups that should be disabled from the default set of alerts.
 	// Possible values are: `NetObservNoFlows`, `NetObservLokiError`, `PacketDropsByKernel`, `PacketDropsByDevice`, `IPsecErrors`, `NetpolDenied`,
-	// `LatencyHighTrend`, `DNSErrors`, `DNSNxDomain`, `ExternalEgressHighTrend`, `ExternalIngressHighTrend`.
-	// More information on alerts: https://github.com/netobserv/network-observability-operator/blob/main/docs/Alerts.md
+	// `LatencyHighTrend`, `DNSErrors`, `DNSNxDomain`, `ExternalEgressHighTrend`, `ExternalIngressHighTrend`, `Ingress5xxErrors`, `IngressHTTPLatencyTrend`.
+	// More information on alerts: https://github.com/netobserv/network-observability-operator/blob/main/docs/HealthRules.md
 	// +optional
-	DisableAlerts []AlertTemplate `json:"disableAlerts"`
+	DisableAlerts []HealthRuleTemplate `json:"disableAlerts"`
 
-	// `alerts` is a list of alerts to be created for Prometheus AlertManager, organized by templates and variants.
-	// More information on alerts: https://github.com/netobserv/network-observability-operator/blob/main/docs/Alerts.md
+	// `healthRules` is a list of health rules to be created for Prometheus, organized by templates and variants.
+	// Each health rule can be configured to generate either alerts or recording rules based on the mode field.
+	// More information on health rules: https://github.com/netobserv/network-observability-operator/blob/main/docs/HealthRules.md
 	// +optional
-	Alerts *[]FLPAlert `json:"alerts"`
+	HealthRules *[]FLPHealthRule `json:"healthRules"`
 }
 
 type FLPLogTypes string
@@ -677,12 +684,12 @@ type FlowCollectorFLP struct {
 	MultiClusterDeployment *bool `json:"multiClusterDeployment,omitempty"`
 
 	//+optional
-	// `addZone` allows availability zone awareness by labelling flows with their source and destination zones.
+	// `addZone` allows availability zone awareness by labeling flows with their source and destination zones.
 	// This feature requires the "topology.kubernetes.io/zone" label to be set on nodes.
 	AddZone *bool `json:"addZone,omitempty"`
 
 	//+optional
-	// `subnetLabels` allows to define custom labels on subnets and IPs or to enable automatic labelling of recognized subnets in OpenShift, which is used to identify cluster external traffic.
+	// `subnetLabels` allows to define custom labels on subnets and IPs or to enable automatic labeling of recognized subnets in OpenShift, which is used to identify cluster external traffic.
 	// When a subnet matches the source or destination IP of a flow, a corresponding field is added: `SrcSubnetLabel` or `DstSubnetLabel`.
 	SubnetLabels SubnetLabels `json:"subnetLabels,omitempty"`
 
@@ -892,6 +899,12 @@ type LokiMicroservicesParams struct {
 
 // LokiMonolithParams is the configuration for monolithic Loki (https://grafana.com/docs/loki/latest/fundamentals/architecture/deployment-modes/#monolithic-mode)
 type LokiMonolithParams struct {
+	// Set `installDemoLoki` to `true` to automatically create Loki deployment, service and storage.
+	// This is useful for development and demo purposes. Do not use it in production.
+	// [Unsupported (*)].
+	//+kubebuilder:default:=false
+	InstallDemoLoki *bool `json:"installDemoLoki,omitempty"`
+
 	//+kubebuilder:default:="http://loki:3100/"
 	// `url` is the unique address of an existing Loki service that points to both the ingester and the querier.
 	URL string `json:"url,omitempty"`
@@ -1021,7 +1034,7 @@ type PrometheusQuerierManual struct {
 // `AlertManagerQuerierManual` defines the full connection parameters to Prometheus AlertManager.
 type AlertManagerQuerierManual struct {
 	// `url` is the address of an existing Prometheus AlertManager service to use for querying alerts.
-	// +required
+	// +optional
 	URL string `json:"url,omitempty"`
 
 	// TLS client configuration for Prometheus AlertManager URL.
@@ -1045,7 +1058,7 @@ type FlowCollectorPrometheus struct {
 // `PrometheusQuerier` defines the desired state for querying Prometheus (client...)
 type PrometheusQuerier struct {
 	// When `enable` is `true`, the Console plugin queries flow metrics from Prometheus instead of Loki whenever possible.
-	// It is enbaled by default: set it to `false` to disable this feature.
+	// It is enabled by default: set it to `false` to disable this feature.
 	// The Console plugin can use either Loki or Prometheus as a data source for metrics (see also `spec.loki`), or both.
 	// Not all queries are transposable from Loki to Prometheus. Hence, if Loki is disabled, some features of the plugin are disabled as well,
 	// such as getting per-pod information or viewing raw flows.
@@ -1054,8 +1067,8 @@ type PrometheusQuerier struct {
 	Enable *bool `json:"enable,omitempty"`
 
 	// `mode` must be set according to the type of Prometheus installation that stores NetObserv metrics:<br>
-	// - Use `Auto` to try configuring automatically. In OpenShift, it uses the Thanos querier from OpenShift Cluster Monitoring<br>
-	// - Use `Manual` for a manual setup<br>
+	// - Use `Auto` to try configuring automatically. In OpenShift, it uses the Thanos querier from OpenShift Cluster Monitoring.<br>
+	// - Use `Manual` for a manual setup.<br>
 	//+unionDiscriminator
 	//+kubebuilder:validation:Enum=Manual;Auto
 	//+kubebuilder:default:="Auto"
@@ -1072,10 +1085,8 @@ type PrometheusQuerier struct {
 	Timeout *metav1.Duration `json:"timeout,omitempty"` // Warning: keep as pointer, else default is ignored
 }
 
-// FlowCollectorConsolePlugin defines the desired ConsolePlugin state of FlowCollector
+// FlowCollectorConsolePlugin defines the desired ConsolePlugin state of FlowCollector.
 type FlowCollectorConsolePlugin struct {
-	// Important: Run "make generate" to regenerate code after modifying this file
-
 	//+kubebuilder:default:=true
 	// Enables the console plugin deployment.
 	Enable *bool `json:"enable,omitempty"`
@@ -1096,18 +1107,18 @@ type FlowCollectorConsolePlugin struct {
 
 	//+kubebuilder:validation:Enum=IfNotPresent;Always;Never
 	//+kubebuilder:default:=IfNotPresent
-	// `imagePullPolicy` is the Kubernetes pull policy for the image defined above
+	// `imagePullPolicy` is the Kubernetes pull policy for the image defined above.
 	ImagePullPolicy string `json:"imagePullPolicy,omitempty"`
 
 	//+kubebuilder:default:={requests:{memory:"50Mi",cpu:"100m"},limits:{memory:"100Mi"}}
 	// `resources`, in terms of compute resources, required by this container.
-	// For more information, see https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+	// For more information, see https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/.
 	// +optional
 	Resources corev1.ResourceRequirements `json:"resources,omitempty" protobuf:"bytes,8,opt,name=resources"`
 
 	//+kubebuilder:validation:Enum=trace;debug;info;warn;error;fatal;panic
 	//+kubebuilder:default:=info
-	// `logLevel` for the console plugin backend
+	// `logLevel` for the console plugin backend.
 	LogLevel string `json:"logLevel,omitempty"`
 
 	// `autoscaler` [deprecated (*)] spec of a horizontal pod autoscaler to set up for the plugin Deployment.
@@ -1116,12 +1127,13 @@ type FlowCollectorConsolePlugin struct {
 	Autoscaler FlowCollectorHPA `json:"autoscaler,omitempty"`
 
 	//+kubebuilder:default:={enable:true}
-	// `portNaming` defines the configuration of the port-to-service name translation
+	// `portNaming` defines the configuration of the port-to-service name translation.
 	PortNaming ConsolePluginPortConfig `json:"portNaming,omitempty"`
 
-	//+kubebuilder:default:={{name:"Applications",filter:{"flow_layer":"\"app\""},default:true},{name:"Infrastructure",filter:{"flow_layer":"\"infra\""}},{name:"Pods network",filter:{"src_kind":"\"Pod\"","dst_kind":"\"Pod\""},default:true},{name:"Services network",filter:{"dst_kind":"\"Service\""}}}
+	//+kubebuilder:default:={{name:"Applications",filter:{"flow_layer":"\"app\""},default:true},{name:"Infrastructure",filter:{"flow_layer":"\"infra\""}},{name:"Pods network",filter:{"src_kind":"\"Pod\"","dst_kind":"\"Pod\""},default:true},{name:"Services network",filter:{"dst_kind":"\"Service\""}},{name:"External ingress",filter:{"src_subnet_label":"\"\",EXT:"}},{name:"External egress",filter:{"dst_subnet_label":"\"\",EXT:"}}}
 	// +optional
-	// `quickFilters` configures quick filter presets for the Console plugin
+	// `quickFilters` configures quick filter presets for the Console plugin.
+	// Filters for external traffic assume the subnet labels are configured to distinguish internal and external traffic (see `spec.processor.subnetLabels`).
 	QuickFilters []QuickFilter `json:"quickFilters"`
 
 	// `advanced` allows setting some aspects of the internal configuration of the console plugin.
@@ -1469,7 +1481,7 @@ type AdvancedPluginConfig struct {
 	Scheduling *SchedulingConfig `json:"scheduling,omitempty"`
 }
 
-// `SubnetLabels` allows you to define custom labels on subnets and IPs or to enable automatic labelling of recognized subnets in OpenShift.
+// `SubnetLabels` allows you to define custom labels on subnets and IPs or to enable automatic labeling of recognized subnets in OpenShift.
 type SubnetLabels struct {
 	// `openShiftAutoDetect` allows, when set to `true`, to detect automatically the machines, pods and services subnets based on the
 	// OpenShift install configuration and the Cluster Network Operator configuration. Indirectly, this is a way to accurately detect
@@ -1477,8 +1489,10 @@ type SubnetLabels struct {
 	//+optional
 	OpenShiftAutoDetect *bool `json:"openShiftAutoDetect,omitempty"`
 
-	// `customLabels` allows to customize subnets and IPs labelling, such as to identify cluster-external workloads or web services.
-	// If you enable `openShiftAutoDetect`, `customLabels` can override the detected subnets in case they overlap.
+	// `customLabels` allows you to customize subnets and IPs labeling, such as to identify cluster external workloads or web services.
+	// External subnets must be labeled with the prefix `EXT:`, or not labeled at all, in order to work with default quick filters and some metrics examples provided.<br/>
+	// If `openShiftAutoDetect` is disabled or you are not using OpenShift, it is recommended to manually configure labels for the cluster subnets, to distinguish internal traffic from external traffic.<br/>
+	// If `openShiftAutoDetect` is enabled, `customLabels` overrides the detected subnets when they overlap.<br/>
 	//+optional
 	CustomLabels []SubnetLabel `json:"customLabels,omitempty"`
 }
@@ -1490,6 +1504,7 @@ type SubnetLabel struct {
 	CIDRs []string `json:"cidrs,omitempty"` // Note, starting with k8s 1.31 / ocp 4.16 there's a new way to validate CIDR such as `+kubebuilder:validation:XValidation:rule="isCIDR(self)",message="field should be in CIDR notation format"`. But older versions would reject the CRD so we cannot implement it now to maintain compatibility.
 
 	// Label name, used to flag matching flows.
+	// External subnets must be labeled with the prefix `EXT:`, or not labeled at all, in order to work with default quick filters and some metrics examples provided.<br/>
 	// +kubebuilder:validation:Pattern:="^[a-zA-Z_:-][a-zA-Z0-9_:-]*$"
 	//+required
 	Name string `json:"name,omitempty"`
@@ -1533,6 +1548,7 @@ type FlowCollectorStatus struct {
 	Conditions []metav1.Condition `json:"conditions"`
 
 	// Namespace where console plugin and flowlogs-pipeline have been deployed.
+	//
 	// Deprecated: annotations are used instead
 	Namespace string `json:"namespace,omitempty"`
 }

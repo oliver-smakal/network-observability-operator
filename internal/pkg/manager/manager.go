@@ -17,7 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
-//+kubebuilder:rbac:groups=core,resources=namespaces;services;serviceaccounts;configmaps;secrets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=namespaces;services;serviceaccounts;configmaps;persistentvolumeclaims;secrets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=pods;nodes;endpoints,verbs=get;list;watch
 //+kubebuilder:rbac:groups=apps,resources=deployments;daemonsets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=apps,resources=replicasets,verbs=get;list;watch
@@ -102,7 +102,7 @@ func NewManager(
 	if err != nil {
 		return nil, fmt.Errorf("can't instantiate discovery client: %w", err)
 	}
-	info, postCreate, err := cluster.NewInfo(ctx, client, dc, func() { statusMgr.Sync(ctx, client) })
+	info, postCreate, err := cluster.NewInfo(ctx, kcfg, dc, func() { statusMgr.Sync(ctx, client) })
 	if err != nil {
 		return nil, fmt.Errorf("can't collect cluster info: %w", err)
 	}

@@ -89,7 +89,7 @@ func flowCollectorIsoSpecs() {
 							Provided: nil,
 						},
 					},
-					DisableAlerts: []flowslatest.AlertTemplate{},
+					DisableAlerts: []flowslatest.HealthRuleTemplate{},
 				},
 			},
 			Agent: flowslatest.FlowCollectorAgent{
@@ -110,7 +110,7 @@ func flowCollectorIsoSpecs() {
 				},
 				EBPF: flowslatest.FlowCollectorEBPF{
 					Sampling:           &zero,
-					CacheActiveTimeout: "5s",
+					CacheActiveTimeout: "15s",
 					CacheMaxFlows:      100,
 					ImagePullPolicy:    "Always",
 					Advanced:           &flowslatest.AdvancedAgentConfig{},
@@ -169,9 +169,10 @@ func flowCollectorIsoSpecs() {
 					TLS:         defaultTLS,
 				},
 				Monolithic: flowslatest.LokiMonolithParams{
-					URL:      "http://loki:3100/",
-					TenantID: "netobserv",
-					TLS:      defaultTLS,
+					InstallDemoLoki: ptr.To(false),
+					URL:             "http://loki:3100/",
+					TenantID:        "netobserv",
+					TLS:             defaultTLS,
 				},
 				LokiStack: flowslatest.LokiStackRef{
 					Name:      "loki",

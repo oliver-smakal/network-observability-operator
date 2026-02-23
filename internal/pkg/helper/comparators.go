@@ -130,8 +130,9 @@ func volumesChanged(old, n *corev1.PodTemplateSpec, report *ChangeReport) bool {
 func containerChanged(old, n *corev1.Container, report *ChangeReport) bool {
 	return report.Check("Image changed", n.Image != old.Image) ||
 		report.Check("Pull policy changed", n.ImagePullPolicy != old.ImagePullPolicy) ||
-		report.Check("Args changed", !deepDerivative(n.Args, old.Args)) ||
+		report.Check("Args changed", !deepEqual(n.Args, old.Args)) ||
 		report.Check("Resources req/limit changed", !deepDerivative(n.Resources, old.Resources)) ||
+		report.Check("Env changed", !deepEqual(n.Env, old.Env)) ||
 		report.Check("Liveness probe changed", probeChanged(n.LivenessProbe, old.LivenessProbe)) ||
 		report.Check("Startup probe changed", probeChanged(n.StartupProbe, old.StartupProbe))
 }
@@ -179,4 +180,32 @@ func AutoScalerChanged(asc *ascv2.HorizontalPodAutoscaler, desired flowslatest.F
 		return true
 	}
 	return false
+}
+
+// PersistentVolumeClaimSpecChanged compares only the critical immutable fields of PVC specs:
+// AccessModes, Storage size, and VolumeMode. Returns true if they differ.
+// Note: PVC specs are immutable, so this function is used to detect mismatches that cannot be updated.
+func PersistentVolumeClaimSpecChanged(current, desired *corev1.PersistentVolumeClaim, report *ChangeReport) bool {
+	// Compare AccessModes
+	if report.Check("AccessModes changed", !deepEqual(desired.Spec.AccessModes, current.Spec.AccessModes)) {
+		return true
+	}
+
+	// Compare Storage resource requests (required field for valid PVCs)
+	desiredStorage := desired.Spec.Resources.Requests[corev1.ResourceStorage]
+	currentStorage := current.Spec.Resources.Requests[corev1.ResourceStorage]
+	if report.Check("Storage size changed", !desiredStorage.Equal(currentStorage)) {
+		return true
+	}
+
+	// Compare VolumeMode (nil defaults to PersistentVolumeFilesystem)
+	getEffectiveMode := func(mode *corev1.PersistentVolumeMode) corev1.PersistentVolumeMode {
+		if mode == nil {
+			return corev1.PersistentVolumeFilesystem
+		}
+		return *mode
+	}
+	desiredMode := getEffectiveMode(desired.Spec.VolumeMode)
+	currentMode := getEffectiveMode(current.Spec.VolumeMode)
+	return report.Check("VolumeMode changed", desiredMode != currentMode)
 }

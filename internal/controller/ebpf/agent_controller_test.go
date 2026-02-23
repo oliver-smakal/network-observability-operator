@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 )
@@ -98,7 +99,6 @@ func TestGetEnvConfig_Default(t *testing.T) {
 
 	env := getEnvConfig(&fc, &cluster.Info{})
 	assert.Equal(t, []corev1.EnvVar{
-		{Name: "GOMEMLIMIT", Value: "0"},
 		{Name: "METRICS_ENABLE", Value: "true"},
 		{Name: "METRICS_SERVER_PORT", Value: "9400"},
 		{Name: "METRICS_PREFIX", Value: "netobserv_agent_"},
@@ -129,6 +129,9 @@ func TestGetEnvConfig_WithOverrides(t *testing.T) {
 							"TC_ATTACH_MODE":                     "any",
 						},
 					},
+					Resources: corev1.ResourceRequirements{
+						Limits: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("800Mi")},
+					},
 					Metrics: flowslatest.EBPFMetrics{
 						Enable: ptr.To(false),
 					},
@@ -148,7 +151,7 @@ func TestGetEnvConfig_WithOverrides(t *testing.T) {
 
 	env := getEnvConfig(&fc, &cluster.Info{})
 	assert.Equal(t, []corev1.EnvVar{
-		{Name: "GOMEMLIMIT", Value: "0"},
+		{Name: "GOMEMLIMIT", Value: "754974720"},
 		{Name: "FLOW_FILTER_RULES", Value: `[{"ip_cidr":"0.0.0.0/0","action":"Accept"}]`},
 		{Name: "AGENT_IP", Value: "",
 			ValueFrom: &corev1.EnvVarSource{
@@ -177,7 +180,6 @@ func TestGetEnvConfig_OCP4_14(t *testing.T) {
 	info.Mock("4.14.5", "")
 	env := getEnvConfig(&fc, &info)
 	assert.Equal(t, []corev1.EnvVar{
-		{Name: "GOMEMLIMIT", Value: "0"},
 		{Name: "METRICS_ENABLE", Value: "true"},
 		{Name: "METRICS_SERVER_PORT", Value: "9400"},
 		{Name: "METRICS_PREFIX", Value: "netobserv_agent_"},
@@ -216,7 +218,53 @@ func TestBpfmanConfig(t *testing.T) {
 	assert.Equal(t, corev1.EnvVar{Name: "EBPF_PROGRAM_MANAGER_MODE", Value: "true"}, ds.Spec.Template.Spec.Containers[0].Env[0])
 	assert.Equal(t, "bpfman-maps", ds.Spec.Template.Spec.Volumes[1].Name)
 	assert.Equal(t, map[string]string{
-		"csi.bpfman.io/maps":    "direct_flows,aggregated_flows,aggregated_flows_dns,aggregated_flows_pkt_drop,aggregated_flows_network_events,aggregated_flows_xlat,additional_flow_metrics,packet_record,dns_flows,global_counters,filter_map,peer_filter_map,ipsec_ingress_map,ipsec_egress_map",
+		"csi.bpfman.io/maps":    "direct_flows,aggregated_flows,aggregated_flows_dns,aggregated_flows_pkt_drop,aggregated_flows_network_events,aggregated_flows_xlat,additional_flow_metrics,packet_record,dns_flows,global_counters,filter_map,peer_filter_map,ipsec_ingress_map,ipsec_egress_map,ssl_data_event_map,dns_name_map",
 		"csi.bpfman.io/program": "netobserv",
 	}, ds.Spec.Template.Spec.Volumes[1].CSI.VolumeAttributes)
+}
+
+func TestNetworkEventsOVNMount(t *testing.T) {
+	fc := flowslatest.FlowCollector{
+		Spec: flowslatest.FlowCollectorSpec{
+			Agent: flowslatest.FlowCollectorAgent{
+				EBPF: flowslatest.FlowCollectorEBPF{
+					Privileged: true,
+					Features:   []flowslatest.AgentFeature{flowslatest.NetworkEvents},
+				},
+			},
+		},
+	}
+
+	// Upstream OVN
+	info := reconcilers.Common{Namespace: "netobserv", ClusterInfo: &cluster.Info{}}
+	inst := info.NewInstance(map[reconcilers.ImageRef]string{reconcilers.MainImage: "ebpf-agent"}, status.Instance{})
+	agent := NewAgentController(inst)
+	ds, err := agent.desired(context.Background(), &fc)
+	assert.NoError(t, err)
+	assert.NotNil(t, ds)
+
+	assert.Equal(t, "var-run-ovn", ds.Spec.Template.Spec.Volumes[2].Name)
+	assert.Equal(t, "/var/run/openvswitch", ds.Spec.Template.Spec.Volumes[2].HostPath.Path)
+
+	// OpenShift OVN
+	info.ClusterInfo.Mock("4.20.0", cluster.OVNKubernetes)
+	ds, err = agent.desired(context.Background(), &fc)
+	assert.NoError(t, err)
+	assert.NotNil(t, ds)
+
+	assert.Equal(t, "var-run-ovn", ds.Spec.Template.Spec.Volumes[2].Name)
+	assert.Equal(t, "/var/run/ovn-ic", ds.Spec.Template.Spec.Volumes[2].HostPath.Path)
+
+	// Custom
+	fc.Spec.Agent.EBPF.Advanced = &flowslatest.AdvancedAgentConfig{
+		Env: map[string]string{
+			envOVNObservHostMountPath: "/foo/bar",
+		},
+	}
+	ds, err = agent.desired(context.Background(), &fc)
+	assert.NoError(t, err)
+	assert.NotNil(t, ds)
+
+	assert.Equal(t, "var-run-ovn", ds.Spec.Template.Spec.Volumes[2].Name)
+	assert.Equal(t, "/foo/bar", ds.Spec.Template.Spec.Volumes[2].HostPath.Path)
 }

@@ -11,8 +11,6 @@ import (
 	"strings"
 
 	"github.com/netobserv/flowlogs-pipeline/pkg/dsl"
-	kerr "k8s.io/apimachinery/pkg/api/errors"
-	runtime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -33,27 +31,19 @@ var (
 )
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (r *FlowCollector) ValidateCreate(ctx context.Context, newObj runtime.Object) (admission.Warnings, error) {
+func (r *FlowCollector) ValidateCreate(ctx context.Context, fc *FlowCollector) (admission.Warnings, error) {
 	log.Info("validate create", "name", r.Name)
-	fc, ok := newObj.(*FlowCollector)
-	if !ok {
-		return nil, kerr.NewBadRequest(fmt.Sprintf("expected a FlowCollector but got a %T", newObj))
-	}
 	return r.Validate(ctx, fc)
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (r *FlowCollector) ValidateUpdate(ctx context.Context, _, newObj runtime.Object) (admission.Warnings, error) {
+func (r *FlowCollector) ValidateUpdate(ctx context.Context, _, fc *FlowCollector) (admission.Warnings, error) {
 	log.Info("validate update", "name", r.Name)
-	fc, ok := newObj.(*FlowCollector)
-	if !ok {
-		return nil, kerr.NewBadRequest(fmt.Sprintf("expected a FlowCollector but got a %T", newObj))
-	}
 	return r.Validate(ctx, fc)
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (r *FlowCollector) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
+func (r *FlowCollector) ValidateDelete(_ context.Context, _ *FlowCollector) (admission.Warnings, error) {
 	log.Info("validate delete", "name", r.Name)
 	return nil, nil
 }
@@ -65,6 +55,7 @@ func (r *FlowCollector) Validate(_ context.Context, fc *FlowCollector) (admissio
 	v.validateAgent()
 	v.validateFLP()
 	v.warnLogLevels()
+	v.warnLokiDemo()
 	return v.warnings, errors.Join(v.errors...)
 }
 
@@ -80,6 +71,12 @@ func (v *validator) warnLogLevels() {
 	}
 	if v.fc.Processor.LogLevel == "debug" || v.fc.Processor.LogLevel == "trace" {
 		v.warnings = append(v.warnings, fmt.Sprintf("The log level for the processor (flowlogs-pipeline) is %s, which impacts performance and resource footprint.", v.fc.Processor.LogLevel))
+	}
+}
+
+func (v *validator) warnLokiDemo() {
+	if v.fc.Loki.Mode == LokiModeMonolithic && v.fc.Loki.Monolithic.InstallDemoLoki != nil && *v.fc.Loki.Monolithic.InstallDemoLoki {
+		v.warnings = append(v.warnings, "InstallDemoLoki option is enabled. This is useful for development and demo purposes but should not be used in production.")
 	}
 }
 
@@ -291,19 +288,29 @@ func (v *validator) validateFLPFilters() {
 }
 
 func (v *validator) validateFLPAlerts() {
-	if v.fc.Processor.Metrics.Alerts != nil {
-		for i, alert := range *v.fc.Processor.Metrics.Alerts {
+	if v.fc.Processor.Metrics.HealthRules != nil {
+		for i, alert := range *v.fc.Processor.Metrics.HealthRules {
 			if _, msg := alert.IsAllowed(v.fc); len(msg) > 0 {
 				v.warnings = append(v.warnings, msg)
 			}
 			for j, variant := range alert.Variants {
 				// Check allowed groups
-				if !v.isFLPAlertGroupBySupported(alert.Template, &variant) {
+				if !v.isFLPHealthRuleGroupBySupported(alert.Template, &variant) {
 					v.errors = append(
 						v.errors,
 						fmt.Errorf(
-							`%s alert template does not support grouping by %s, in spec.processor.metrics.alerts[%d].variants[%d]`,
+							`%s alert template does not support grouping by %s, in spec.processor.metrics.healthRules[%d].variants[%d]`,
 							alert.Template, variant.GroupBy, i, j,
+						),
+					)
+				}
+				// Check that at least one threshold is provided (required for both alert and recording modes)
+				if variant.Thresholds.Critical == "" && variant.Thresholds.Warning == "" && variant.Thresholds.Info == "" {
+					v.errors = append(
+						v.errors,
+						fmt.Errorf(
+							`at least one threshold (critical, warning, or info) must be provided in spec.processor.metrics.healthRules[%d].variants[%d]`,
+							i, j,
 						),
 					)
 				}
@@ -322,17 +329,17 @@ func (v *validator) validateFLPAlerts() {
 						if err != nil {
 							v.errors = append(
 								v.errors,
-								fmt.Errorf(`cannot parse %s threshold as float in spec.processor.metrics.alerts[%d].variants[%d]: "%s"`, st.s, i, j, st.t),
+								fmt.Errorf(`cannot parse %s threshold as float in spec.processor.metrics.healthRules[%d].variants[%d]: "%s"`, st.s, i, j, st.t),
 							)
 						} else if val < 0 {
 							v.errors = append(
 								v.errors,
-								fmt.Errorf(`%s threshold must be positive in spec.processor.metrics.alerts[%d].variants[%d]: "%s"`, st.s, i, j, st.t),
+								fmt.Errorf(`%s threshold must be positive in spec.processor.metrics.healthRules[%d].variants[%d]: "%s"`, st.s, i, j, st.t),
 							)
 						} else if lastThreshold > 0 && val > lastThreshold {
 							v.errors = append(
 								v.errors,
-								fmt.Errorf(`%s threshold must be lower than %.0f, which is defined for a higher severity, in spec.processor.metrics.alerts[%d].variants[%d]: "%s"`, st.s, lastThreshold, i, j, st.t),
+								fmt.Errorf(`%s threshold must be lower than %.0f, which is defined for a higher severity, in spec.processor.metrics.healthRules[%d].variants[%d]: "%s"`, st.s, lastThreshold, i, j, st.t),
 							)
 						}
 						lastThreshold = val
@@ -343,22 +350,43 @@ func (v *validator) validateFLPAlerts() {
 					if err != nil {
 						v.errors = append(
 							v.errors,
-							fmt.Errorf(`cannot parse lowVolumeThreshold as float in spec.processor.metrics.alerts[%d].variants[%d]: "%s"`, i, j, variant.LowVolumeThreshold),
+							fmt.Errorf(`cannot parse lowVolumeThreshold as float in spec.processor.metrics.healthRules[%d].variants[%d]: "%s"`, i, j, variant.LowVolumeThreshold),
 						)
 					}
 				}
+				// Validate variant mode
+				v.validateVariantMode(alert.Template, &variant, i, j)
 			}
 		}
 	}
 }
 
-func (v *validator) isFLPAlertGroupBySupported(template AlertTemplate, variant *AlertVariant) bool {
+func (v *validator) validateVariantMode(template HealthRuleTemplate, variant *HealthRuleVariant, ruleIndex, variantIndex int) {
+	// Validate that variant mode (if specified) is not Recording for alert-only templates
+	// Note: AlertNoFlows and AlertLokiError are handled separately and not part of healthRules,
+	// but we keep this check for defensive programming in case that changes
+	if variant.Mode != nil && *variant.Mode == ModeRecording {
+		if template == AlertNoFlows || template == AlertLokiError {
+			v.errors = append(
+				v.errors,
+				fmt.Errorf(
+					`alert-only template %s cannot have variant with mode Recording in spec.processor.metrics.healthRules[%d].variants[%d]`,
+					template, ruleIndex, variantIndex,
+				),
+			)
+		}
+	}
+}
+
+func (v *validator) isFLPHealthRuleGroupBySupported(template HealthRuleTemplate, variant *HealthRuleVariant) bool {
 	switch template {
-	case AlertPacketDropsByDevice:
+	case HealthRulePacketDropsByDevice:
 		return variant.GroupBy != GroupByWorkload
-	case AlertIPsecErrors:
+	case HealthRuleIPsecErrors:
 		return variant.GroupBy != GroupByWorkload && variant.GroupBy != GroupByNamespace
-	case AlertPacketDropsByKernel, AlertDNSErrors, AlertDNSNxDomain, AlertExternalEgressHighTrend, AlertExternalIngressHighTrend, AlertLatencyHighTrend, AlertNetpolDenied:
+	case HealthRuleIngress5xxErrors, HealthRuleIngressHTTPLatencyTrend:
+		return variant.GroupBy != GroupByNode && variant.GroupBy != GroupByWorkload
+	case HealthRulePacketDropsByKernel, HealthRuleDNSErrors, HealthRuleDNSNxDomain, HealthRuleExternalEgressHighTrend, HealthRuleExternalIngressHighTrend, HealthRuleLatencyHighTrend, HealthRuleNetpolDenied:
 		return true
 	case AlertLokiError, AlertNoFlows: // not applicable
 		return false
@@ -368,7 +396,7 @@ func (v *validator) isFLPAlertGroupBySupported(template AlertTemplate, variant *
 
 func (v *validator) validateFLPMetricsForAlerts() {
 	metrics := v.fc.GetIncludeList()
-	alerts := v.fc.GetFLPAlerts()
+	alerts := v.fc.GetFLPHealthRules()
 	for _, g := range alerts {
 		for _, a := range g.Variants {
 			reqMetrics1, reqMetrics2 := GetElligibleMetricsForAlert(g.Template, &a)
@@ -377,7 +405,7 @@ func (v *validator) validateFLPMetricsForAlerts() {
 				if GetFirstRequiredMetrics(reqMetrics1, metrics) == "" {
 					v.warnings = append(
 						v.warnings,
-						fmt.Sprintf("Alert %s/%s requires enabling at least one metric from this list: %s", g.Template, a.GroupBy, strings.Join(reqMetrics1, ", ")),
+						fmt.Sprintf("HealthRule %s/%s requires enabling at least one metric from this list: %s", g.Template, a.GroupBy, strings.Join(reqMetrics1, ", ")),
 					)
 				}
 			}
@@ -385,7 +413,7 @@ func (v *validator) validateFLPMetricsForAlerts() {
 				if GetFirstRequiredMetrics(reqMetrics2, metrics) == "" {
 					v.warnings = append(
 						v.warnings,
-						fmt.Sprintf("Alert %s/%s requires enabling at least one metric from this list: %s", g.Template, a.GroupBy, strings.Join(reqMetrics2, ", ")),
+						fmt.Sprintf("HealthRule %s/%s requires enabling at least one metric from this list: %s", g.Template, a.GroupBy, strings.Join(reqMetrics2, ", ")),
 					)
 				}
 			}
@@ -402,31 +430,31 @@ func GetFirstRequiredMetrics(anyRequired, actual []string) string {
 	return ""
 }
 
-func GetElligibleMetricsForAlert(template AlertTemplate, alertDef *AlertVariant) ([]string, []string) {
+func GetElligibleMetricsForAlert(template HealthRuleTemplate, alertDef *HealthRuleVariant) ([]string, []string) {
 	var metricPatterns, totalMetricPatterns []string
 	switch template {
-	case AlertPacketDropsByKernel:
+	case HealthRulePacketDropsByKernel:
 		metricPatterns = []string{"%s_drop_packets_total"}
 		totalMetricPatterns = []string{"%s_ingress_packets_total", "%s_egress_packets_total"}
-	case AlertIPsecErrors:
+	case HealthRuleIPsecErrors:
 		return []string{"node_ipsec_flows_total"}, []string{"node_to_node_ingress_flows_total"}
-	case AlertDNSErrors, AlertDNSNxDomain:
+	case HealthRuleDNSErrors, HealthRuleDNSNxDomain:
 		metricPatterns = []string{`%s_dns_latency_seconds`}
 		totalMetricPatterns = []string{"%s_dns_latency_seconds"}
-	case AlertExternalEgressHighTrend:
+	case HealthRuleExternalEgressHighTrend:
 		metricPatterns = []string{`%s_egress_bytes_total`}
 		totalMetricPatterns = []string{`%s_egress_bytes_total`}
-	case AlertExternalIngressHighTrend:
+	case HealthRuleExternalIngressHighTrend:
 		metricPatterns = []string{`%s_ingress_bytes_total`}
 		totalMetricPatterns = []string{`%s_ingress_bytes_total`}
-	case AlertLatencyHighTrend:
+	case HealthRuleLatencyHighTrend:
 		metricPatterns = []string{`%s_rtt_seconds`}
 		totalMetricPatterns = []string{`%s_rtt_seconds`}
-	case AlertNetpolDenied:
+	case HealthRuleNetpolDenied:
 		metricPatterns = []string{`%s_network_policy_events_total`}
 		totalMetricPatterns = []string{"%s_flows_total"}
-	case AlertNoFlows, AlertLokiError, AlertPacketDropsByDevice:
-		// nothing
+	case AlertNoFlows, AlertLokiError, HealthRulePacketDropsByDevice, HealthRuleIngress5xxErrors, HealthRuleIngressHTTPLatencyTrend:
+		// nothing - these rules don't use NetObserv metrics
 		return nil, nil
 	}
 	var gr []string
@@ -453,3 +481,6 @@ func GetElligibleMetricsForAlert(template AlertTemplate, alertDef *AlertVariant)
 	}
 	return metrics, totalMetrics
 }
+
+// Alias for backward compatibility
+var GetElligibleMetricsForHealthRule = GetElligibleMetricsForAlert

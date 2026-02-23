@@ -2,7 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.2
+    controller-gen.kubebuilder.io/version: v0.20.0
   creationTimestamp: null
   name: flowcollectors.flows.netobserv.io
 spec:
@@ -1075,9 +1075,10 @@ spec:
                                     operator:
                                       description: |-
                                         Operator represents a key's relationship to the value.
-                                        Valid operators are Exists and Equal. Defaults to Equal.
+                                        Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                                         Exists is equivalent to wildcard for value, so that a pod can
                                         tolerate all taints of a particular category.
+                                        Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                                       type: string
                                     tolerationSeconds:
                                       description: |-
@@ -1097,17 +1098,17 @@ spec:
                             type: object
                         type: object
                       cacheActiveTimeout:
-                        default: 5s
+                        default: 15s
                         description: |-
-                          `cacheActiveTimeout` is the max period during which the reporter aggregates flows before sending.
+                          `cacheActiveTimeout` is the period during which the agent aggregates flows before sending.
                           Increasing `cacheMaxFlows` and `cacheActiveTimeout` can decrease the network traffic overhead and the CPU load,
                           however you can expect higher memory consumption and an increased latency in the flow collection.
                         pattern: ^\d+(ns|ms|s|m)?$
                         type: string
                       cacheMaxFlows:
-                        default: 100000
+                        default: 120000
                         description: |-
-                          `cacheMaxFlows` is the max number of flows in an aggregate; when reached, the reporter sends the flows.
+                          `cacheMaxFlows` is the maximum number of flows in an aggregate; when reached, the reporter sends the flows.
                           Increasing `cacheMaxFlows` and `cacheActiveTimeout` can decrease the network traffic overhead and the CPU load,
                           however you can expect higher memory consumption and an increased latency in the flow collection.
                         format: int32
@@ -2727,9 +2728,10 @@ spec:
                                 operator:
                                   description: |-
                                     Operator represents a key's relationship to the value.
-                                    Valid operators are Exists and Equal. Defaults to Equal.
+                                    Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                                     Exists is equivalent to wildcard for value, so that a pod can
                                     tolerate all taints of a particular category.
+                                    Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                                   type: string
                                 tolerationSeconds:
                                   description: |-
@@ -3057,7 +3059,7 @@ spec:
                   imagePullPolicy:
                     default: IfNotPresent
                     description: '`imagePullPolicy` is the Kubernetes pull policy
-                      for the image defined above'
+                      for the image defined above.'
                     enum:
                     - IfNotPresent
                     - Always
@@ -3065,7 +3067,7 @@ spec:
                     type: string
                   logLevel:
                     default: info
-                    description: '`logLevel` for the console plugin backend'
+                    description: '`logLevel` for the console plugin backend.'
                     enum:
                     - trace
                     - debug
@@ -3079,7 +3081,7 @@ spec:
                     default:
                       enable: true
                     description: '`portNaming` defines the configuration of the port-to-service
-                      name translation'
+                      name translation.'
                     properties:
                       enable:
                         default: true
@@ -3111,8 +3113,15 @@ spec:
                     - filter:
                         dst_kind: '"Service"'
                       name: Services network
-                    description: '`quickFilters` configures quick filter presets for
-                      the Console plugin'
+                    - filter:
+                        src_subnet_label: '"",EXT:'
+                      name: External ingress
+                    - filter:
+                        dst_subnet_label: '"",EXT:'
+                      name: External egress
+                    description: |-
+                      `quickFilters` configures quick filter presets for the Console plugin.
+                      Filters for external traffic assume the subnet labels are configured to distinguish internal and external traffic (see `spec.processor.subnetLabels`).
                     items:
                       description: '`QuickFilter` defines preset configuration for
                         Console''s quick filters'
@@ -3153,7 +3162,7 @@ spec:
                         memory: 50Mi
                     description: |-
                       `resources`, in terms of compute resources, required by this container.
-                      For more information, see https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                      For more information, see https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/.
                     properties:
                       claims:
                         description: |-
@@ -3247,6 +3256,13 @@ spec:
                       description: IPFIX configuration, such as the IP address and
                         port to send enriched IPFIX flows to.
                       properties:
+                        enterpriseID:
+                          default: 2
+                          description: |-
+                            EnterpriseID, or Private Enterprise Number (PEN). To date, NetObserv does not own an assigned number,
+                            so it is left open for configuration. The PEN is needed to collect non standard data, such as Kubernetes names,
+                            RTT, etc.
+                          type: integer
                         targetHost:
                           default: ""
                           description: Address of the IPFIX external receiver.
@@ -3263,6 +3279,7 @@ spec:
                           - UDP
                           type: string
                       required:
+                      - enterpriseID
                       - targetHost
                       - targetPort
                       type: object
@@ -4134,6 +4151,13 @@ spec:
                       Use this option when Loki is installed using the monolithic deployment mode (https://grafana.com/docs/loki/latest/fundamentals/architecture/deployment-modes/#monolithic-mode).
                       It is ignored for other modes.
                     properties:
+                      installDemoLoki:
+                        default: false
+                        description: |-
+                          Set `installDemoLoki` to `true` to automatically create Loki deployment, service and storage.
+                          This is useful for development and demo purposes. Do not use it in production.
+                          [Unsupported (*)].
+                        type: boolean
                       tenantID:
                         default: netobserv
                         description: '`tenantID` is the Loki `X-Scope-OrgID` header
@@ -4284,7 +4308,7 @@ spec:
                 properties:
                   addZone:
                     description: |-
-                      `addZone` allows availability zone awareness by labelling flows with their source and destination zones.
+                      `addZone` allows availability zone awareness by labeling flows with their source and destination zones.
                       This feature requires the "topology.kubernetes.io/zone" label to be set on nodes.
                     type: boolean
                   advanced:
@@ -5322,9 +5346,10 @@ spec:
                                 operator:
                                   description: |-
                                     Operator represents a key's relationship to the value.
-                                    Valid operators are Exists and Equal. Defaults to Equal.
+                                    Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
                                     Exists is equivalent to wildcard for value, so that a pod can
                                     tolerate all taints of a particular category.
+                                    Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).
                                   type: string
                                 tolerationSeconds:
                                   description: |-
@@ -5807,18 +5832,41 @@ spec:
                     description: '`Metrics` define the processor configuration regarding
                       metrics'
                     properties:
-                      alerts:
+                      disableAlerts:
                         description: |-
-                          `alerts` is a list of alerts to be created for Prometheus AlertManager, organized by templates and variants.
-                          More information on alerts: https://github.com/netobserv/network-observability-operator/blob/main/docs/Alerts.md
+                          `disableAlerts` is a list of alert groups that should be disabled from the default set of alerts.
+                          Possible values are: `NetObservNoFlows`, `NetObservLokiError`, `PacketDropsByKernel`, `PacketDropsByDevice`, `IPsecErrors`, `NetpolDenied`,
+                          `LatencyHighTrend`, `DNSErrors`, `DNSNxDomain`, `ExternalEgressHighTrend`, `ExternalIngressHighTrend`, `Ingress5xxErrors`, `IngressHTTPLatencyTrend`.
+                          More information on alerts: https://github.com/netobserv/network-observability-operator/blob/main/docs/HealthRules.md
+                        items:
+                          type: string
+                        type: array
+                      healthRules:
+                        description: |-
+                          `healthRules` is a list of health rules to be created for Prometheus, organized by templates and variants.
+                          Each health rule can be configured to generate either alerts or recording rules based on the mode field.
+                          More information on health rules: https://github.com/netobserv/network-observability-operator/blob/main/docs/HealthRules.md
                         items:
                           properties:
+                            mode:
+                              default: Alert
+                              description: |-
+                                Mode defines whether this health rule should be generated as an alert or a recording rule.
+                                Possible values are: `Alert` (default), `Recording`.
+                                Recording rules violations are visible in the Network Health dashboard without generating any Prometheus alert.
+                                This provides an alternative way of getting Health information for SRE and cluster admins who may find
+                                many new alerts burdensome.
+                              enum:
+                              - Alert
+                              - Recording
+                              type: string
                             template:
                               description: |-
-                                Alert template name.
+                                Health rule template name.
                                 Possible values are: `PacketDropsByKernel`, `PacketDropsByDevice`, `IPsecErrors`, `NetpolDenied`,
-                                `LatencyHighTrend`, `DNSErrors`, `DNSNxDomain`, `ExternalEgressHighTrend`, `ExternalIngressHighTrend`.
-                                More information on alerts: https://github.com/netobserv/network-observability-operator/blob/main/docs/Alerts.md
+                                `LatencyHighTrend`, `DNSErrors`, `DNSNxDomain`, `ExternalEgressHighTrend`, `ExternalIngressHighTrend`, `Ingress5xxErrors`, `IngressHTTPLatencyTrend`.
+                                Note: `NetObservNoFlows` and `NetObservLokiError` are alert-only and cannot be used as health rules.
+                                More information on health rules: https://github.com/netobserv/network-observability-operator/blob/main/docs/HealthRules.md
                               enum:
                               - PacketDropsByKernel
                               - PacketDropsByDevice
@@ -5829,6 +5877,8 @@ spec:
                               - DNSNxDomain
                               - ExternalEgressHighTrend
                               - ExternalIngressHighTrend
+                              - Ingress5xxErrors
+                              - IngressHTTPLatencyTrend
                               type: string
                             variants:
                               description: A list of variants for this template
@@ -5849,10 +5899,20 @@ spec:
                                       It is provided as an absolute rate (bytes per second or packets per second, depending on the context).
                                       When provided, it must be parsable as a float.
                                     type: string
+                                  mode:
+                                    description: |-
+                                      Mode overrides the health rule mode for this specific variant.
+                                      If not specified, inherits from the parent health rule's mode.
+                                      Possible values are: `Alert`, `Recording`.
+                                    enum:
+                                    - Alert
+                                    - Recording
+                                    type: string
                                   thresholds:
                                     description: |-
-                                      Thresholds of the alert per severity.
+                                      Thresholds of the health rule per severity.
                                       They are expressed as a percentage of errors above which the alert is triggered. They must be parsable as floats.
+                                      Required for both alert and recording modes
                                     properties:
                                       critical:
                                         description: Threshold for severity `critical`.
@@ -5868,15 +5928,16 @@ spec:
                                         type: string
                                     type: object
                                   trendDuration:
-                                    description: For trending alerts, the duration
+                                    description: For trending health rules, the duration
                                       interval for baseline comparison. For example,
                                       "2h" means comparing against a 2-hours average.
                                       Defaults to 2h.
                                     type: string
                                   trendOffset:
-                                    description: For trending alerts, the time offset
-                                      for baseline comparison. For example, "1d" means
-                                      comparing against yesterday. Defaults to 1d.
+                                    description: For trending health rules, the time
+                                      offset for baseline comparison. For example,
+                                      "1d" means comparing against yesterday. Defaults
+                                      to 1d.
                                     type: string
                                 required:
                                 - thresholds
@@ -5886,15 +5947,6 @@ spec:
                           - template
                           - variants
                           type: object
-                        type: array
-                      disableAlerts:
-                        description: |-
-                          `disableAlerts` is a list of alert groups that should be disabled from the default set of alerts.
-                          Possible values are: `NetObservNoFlows`, `NetObservLokiError`, `PacketDropsByKernel`, `PacketDropsByDevice`, `IPsecErrors`, `NetpolDenied`,
-                          `LatencyHighTrend`, `DNSErrors`, `DNSNxDomain`, `ExternalEgressHighTrend`, `ExternalIngressHighTrend`.
-                          More information on alerts: https://github.com/netobserv/network-observability-operator/blob/main/docs/Alerts.md
-                        items:
-                          type: string
                         type: array
                       includeList:
                         description: |-
@@ -6146,13 +6198,15 @@ spec:
                     type: object
                   subnetLabels:
                     description: |-
-                      `subnetLabels` allows to define custom labels on subnets and IPs or to enable automatic labelling of recognized subnets in OpenShift, which is used to identify cluster external traffic.
+                      `subnetLabels` allows to define custom labels on subnets and IPs or to enable automatic labeling of recognized subnets in OpenShift, which is used to identify cluster external traffic.
                       When a subnet matches the source or destination IP of a flow, a corresponding field is added: `SrcSubnetLabel` or `DstSubnetLabel`.
                     properties:
                       customLabels:
                         description: |-
-                          `customLabels` allows to customize subnets and IPs labelling, such as to identify cluster-external workloads or web services.
-                          If you enable `openShiftAutoDetect`, `customLabels` can override the detected subnets in case they overlap.
+                          `customLabels` allows you to customize subnets and IPs labeling, such as to identify cluster external workloads or web services.
+                          External subnets must be labeled with the prefix `EXT:`, or not labeled at all, in order to work with default quick filters and some metrics examples provided.<br/>
+                          If `openShiftAutoDetect` is disabled or you are not using OpenShift, it is recommended to manually configure labels for the cluster subnets, to distinguish internal traffic from external traffic.<br/>
+                          If `openShiftAutoDetect` is enabled, `customLabels` overrides the detected subnets when they overlap.<br/>
                         items:
                           description: SubnetLabel allows to label subnets and IPs,
                             such as to identify cluster-external workloads or web
@@ -6164,7 +6218,9 @@ spec:
                                 type: string
                               type: array
                             name:
-                              description: Label name, used to flag matching flows.
+                              description: |-
+                                Label name, used to flag matching flows.
+                                External subnets must be labeled with the prefix `EXT:`, or not labeled at all, in order to work with default quick filters and some metrics examples provided.<br/>
                               pattern: ^[a-zA-Z_:-][a-zA-Z0-9_:-]*$
                               type: string
                           required:
@@ -6196,7 +6252,7 @@ spec:
                       enable:
                         description: |-
                           When `enable` is `true`, the Console plugin queries flow metrics from Prometheus instead of Loki whenever possible.
-                          It is enbaled by default: set it to `false` to disable this feature.
+                          It is enabled by default: set it to `false` to disable this feature.
                           The Console plugin can use either Loki or Prometheus as a data source for metrics (see also `spec.loki`), or both.
                           Not all queries are transposable from Loki to Prometheus. Hence, if Loki is disabled, some features of the plugin are disabled as well,
                           such as getting per-pod information or viewing raw flows.
@@ -6299,8 +6355,6 @@ spec:
                                   Prometheus AlertManager service to use for querying
                                   alerts.'
                                 type: string
-                            required:
-                            - url
                             type: object
                           forwardUserToken:
                             description: Set `true` to forward logged in user token
@@ -6397,8 +6451,8 @@ spec:
                         default: Auto
                         description: |-
                           `mode` must be set according to the type of Prometheus installation that stores NetObserv metrics:<br>
-                          - Use `Auto` to try configuring automatically. In OpenShift, it uses the Thanos querier from OpenShift Cluster Monitoring<br>
-                          - Use `Manual` for a manual setup<br>
+                          - Use `Auto` to try configuring automatically. In OpenShift, it uses the Thanos querier from OpenShift Cluster Monitoring.<br>
+                          - Use `Manual` for a manual setup.<br>
                         enum:
                         - Manual
                         - Auto
@@ -6478,6 +6532,7 @@ spec:
               namespace:
                 description: |-
                   Namespace where console plugin and flowlogs-pipeline have been deployed.
+
                   Deprecated: annotations are used instead
                 type: string
             required:

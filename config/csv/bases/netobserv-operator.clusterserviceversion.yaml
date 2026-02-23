@@ -321,10 +321,10 @@ spec:
   - supported: true
     type: AllNamespaces
   keywords:
-  - network observability
+  - netobserv
   - ebpf
   - ipfix
-  - flow tracing
+  - netflows
   - flows
   - topology
   - network
@@ -345,7 +345,7 @@ spec:
     name: Leandro Beretta
   - email: ljira@redhat.com
     name: Luis Jira
-  - email: mmahmoud@redhat.com
+  - email: mmahmoud2201@gmail.com
     name: Mohamed S. Mahmoud
   - email: ocazade@redhat.com
     name: Olivier Cazade

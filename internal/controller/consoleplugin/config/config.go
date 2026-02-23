@@ -24,6 +24,7 @@ type LokiConfig struct {
 	URL    string   `yaml:"url" json:"url"`
 	Labels []string `yaml:"labels" json:"labels"`
 
+	Status             string       `yaml:"status,omitempty" json:"status,omitempty"`
 	StatusURL          string       `yaml:"statusUrl,omitempty" json:"statusUrl,omitempty"`
 	Timeout            api.Duration `yaml:"timeout,omitempty" json:"timeout,omitempty"`
 	TenantID           string       `yaml:"tenantID,omitempty" json:"tenantID,omitempty"`
@@ -92,6 +93,7 @@ type FilterConfig struct {
 	Examples               string `yaml:"examples,omitempty" json:"examples,omitempty"`
 	DocURL                 string `yaml:"docUrl,omitempty" json:"docUrl,omitempty"`
 	Placeholder            string `yaml:"placeholder,omitempty" json:"placeholder,omitempty"`
+	Feature                string `yaml:"feature,omitempty" json:"feature,omitempty"`
 }
 
 type ScopeConfig struct {
@@ -116,16 +118,17 @@ type FieldConfig struct {
 }
 
 type FrontendConfig struct {
-	RecordTypes     []api.ConnTrackOutputRecordTypeEnum `yaml:"recordTypes" json:"recordTypes"`
-	PortNaming      flowslatest.ConsolePluginPortConfig `yaml:"portNaming,omitempty" json:"portNaming,omitempty"`
-	Columns         []ColumnConfig                      `yaml:"columns" json:"columns"`
-	Filters         []FilterConfig                      `yaml:"filters,omitempty" json:"filters,omitempty"`
-	Scopes          []ScopeConfig                       `yaml:"scopes" json:"scopes"`
-	QuickFilters    []flowslatest.QuickFilter           `yaml:"quickFilters,omitempty" json:"quickFilters,omitempty"`
-	AlertNamespaces []string                            `yaml:"alertNamespaces,omitempty" json:"alertNamespaces,omitempty"`
-	Sampling        int                                 `yaml:"sampling" json:"sampling"`
-	Features        []string                            `yaml:"features" json:"features"`
-	Fields          []FieldConfig                       `yaml:"fields" json:"fields"`
+	RecordTypes          []api.ConnTrackOutputRecordTypeEnum `yaml:"recordTypes" json:"recordTypes"`
+	PortNaming           flowslatest.ConsolePluginPortConfig `yaml:"portNaming,omitempty" json:"portNaming,omitempty"`
+	Columns              []ColumnConfig                      `yaml:"columns" json:"columns"`
+	Filters              []FilterConfig                      `yaml:"filters,omitempty" json:"filters,omitempty"`
+	Scopes               []ScopeConfig                       `yaml:"scopes" json:"scopes"`
+	QuickFilters         []flowslatest.QuickFilter           `yaml:"quickFilters,omitempty" json:"quickFilters,omitempty"`
+	AlertNamespaces      []string                            `yaml:"alertNamespaces,omitempty" json:"alertNamespaces,omitempty"`
+	Sampling             int                                 `yaml:"sampling" json:"sampling"`
+	Features             []string                            `yaml:"features" json:"features"`
+	Fields               []FieldConfig                       `yaml:"fields" json:"fields"`
+	RecordingAnnotations map[string]map[string]string        `yaml:"recordingAnnotations,omitempty" json:"recordingAnnotations,omitempty"`
 }
 
 type PluginConfig struct {

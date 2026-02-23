@@ -256,23 +256,23 @@ override the default Linux capabilities from there.<br/>
         <td><b>cacheActiveTimeout</b></td>
         <td>string</td>
         <td>
-          `cacheActiveTimeout` is the max period during which the reporter aggregates flows before sending.
+          `cacheActiveTimeout` is the period during which the agent aggregates flows before sending.
 Increasing `cacheMaxFlows` and `cacheActiveTimeout` can decrease the network traffic overhead and the CPU load,
 however you can expect higher memory consumption and an increased latency in the flow collection.<br/>
           <br/>
-            <i>Default</i>: 5s<br/>
+            <i>Default</i>: 15s<br/>
         </td>
         <td>false</td>
       </tr><tr>
         <td><b>cacheMaxFlows</b></td>
         <td>integer</td>
         <td>
-          `cacheMaxFlows` is the max number of flows in an aggregate; when reached, the reporter sends the flows.
+          `cacheMaxFlows` is the maximum number of flows in an aggregate; when reached, the reporter sends the flows.
 Increasing `cacheMaxFlows` and `cacheActiveTimeout` can decrease the network traffic overhead and the CPU load,
 however you can expect higher memory consumption and an increased latency in the flow collection.<br/>
           <br/>
             <i>Format</i>: int32<br/>
-            <i>Default</i>: 100000<br/>
+            <i>Default</i>: 120000<br/>
             <i>Minimum</i>: 1<br/>
         </td>
         <td>false</td>
@@ -2152,9 +2152,10 @@ If the key is empty, operator must be Exists; this combination means to match al
         <td>string</td>
         <td>
           Operator represents a key's relationship to the value.
-Valid operators are Exists and Equal. Defaults to Equal.
+Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
 Exists is equivalent to wildcard for value, so that a pod can
-tolerate all taints of a particular category.<br/>
+tolerate all taints of a particular category.
+Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).<br/>
         </td>
         <td>false</td>
       </tr><tr>
@@ -3023,7 +3024,7 @@ Deprecation notice: managed autoscaler will be removed in a future version. You 
         <td><b>imagePullPolicy</b></td>
         <td>enum</td>
         <td>
-          `imagePullPolicy` is the Kubernetes pull policy for the image defined above<br/>
+          `imagePullPolicy` is the Kubernetes pull policy for the image defined above.<br/>
           <br/>
             <i>Enum</i>: IfNotPresent, Always, Never<br/>
             <i>Default</i>: IfNotPresent<br/>
@@ -3033,7 +3034,7 @@ Deprecation notice: managed autoscaler will be removed in a future version. You 
         <td><b>logLevel</b></td>
         <td>enum</td>
         <td>
-          `logLevel` for the console plugin backend<br/>
+          `logLevel` for the console plugin backend.<br/>
           <br/>
             <i>Enum</i>: trace, debug, info, warn, error, fatal, panic<br/>
             <i>Default</i>: info<br/>
@@ -3043,7 +3044,7 @@ Deprecation notice: managed autoscaler will be removed in a future version. You 
         <td><b><a href="#flowcollectorspecconsolepluginportnaming">portNaming</a></b></td>
         <td>object</td>
         <td>
-          `portNaming` defines the configuration of the port-to-service name translation<br/>
+          `portNaming` defines the configuration of the port-to-service name translation.<br/>
           <br/>
             <i>Default</i>: map[enable:true]<br/>
         </td>
@@ -3052,9 +3053,10 @@ Deprecation notice: managed autoscaler will be removed in a future version. You 
         <td><b><a href="#flowcollectorspecconsolepluginquickfiltersindex">quickFilters</a></b></td>
         <td>[]object</td>
         <td>
-          `quickFilters` configures quick filter presets for the Console plugin<br/>
+          `quickFilters` configures quick filter presets for the Console plugin.
+Filters for external traffic assume the subnet labels are configured to distinguish internal and external traffic (see `spec.processor.subnetLabels`).<br/>
           <br/>
-            <i>Default</i>: [map[default:true filter:map[flow_layer:"app"] name:Applications] map[filter:map[flow_layer:"infra"] name:Infrastructure] map[default:true filter:map[dst_kind:"Pod" src_kind:"Pod"] name:Pods network] map[filter:map[dst_kind:"Service"] name:Services network]]<br/>
+            <i>Default</i>: [map[default:true filter:map[flow_layer:"app"] name:Applications] map[filter:map[flow_layer:"infra"] name:Infrastructure] map[default:true filter:map[dst_kind:"Pod" src_kind:"Pod"] name:Pods network] map[filter:map[dst_kind:"Service"] name:Services network] map[filter:map[src_subnet_label:"",EXT:] name:External ingress] map[filter:map[dst_subnet_label:"",EXT:] name:External egress]]<br/>
         </td>
         <td>false</td>
       </tr><tr>
@@ -3073,7 +3075,7 @@ Deprecation notice: managed autoscaler will be removed in a future version. You 
         <td>object</td>
         <td>
           `resources`, in terms of compute resources, required by this container.
-For more information, see https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/<br/>
+For more information, see https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/.<br/>
           <br/>
             <i>Default</i>: map[limits:map[memory:100Mi] requests:map[cpu:100m memory:50Mi]]<br/>
         </td>
@@ -4880,9 +4882,10 @@ If the key is empty, operator must be Exists; this combination means to match al
         <td>string</td>
         <td>
           Operator represents a key's relationship to the value.
-Valid operators are Exists and Equal. Defaults to Equal.
+Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
 Exists is equivalent to wildcard for value, so that a pod can
-tolerate all taints of a particular category.<br/>
+tolerate all taints of a particular category.
+Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).<br/>
         </td>
         <td>false</td>
       </tr><tr>
@@ -5841,7 +5844,7 @@ available.<br/>
 
 
 
-`portNaming` defines the configuration of the port-to-service name translation
+`portNaming` defines the configuration of the port-to-service name translation.
 
 <table>
     <thead>
@@ -5921,7 +5924,7 @@ for example, `filter: {"src_namespace": "namespace1,namespace2"}`.<br/>
 
 
 `resources`, in terms of compute resources, required by this container.
-For more information, see https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+For more information, see https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/.
 
 <table>
     <thead>
@@ -6072,6 +6075,17 @@ IPFIX configuration, such as the IP address and port to send enriched IPFIX flow
         </tr>
     </thead>
     <tbody><tr>
+        <td><b>enterpriseID</b></td>
+        <td>integer</td>
+        <td>
+          EnterpriseID, or Private Enterprise Number (PEN). To date, NetObserv does not own an assigned number,
+so it is left open for configuration. The PEN is needed to collect non standard data, such as Kubernetes names,
+RTT, etc.<br/>
+          <br/>
+            <i>Default</i>: 2<br/>
+        </td>
+        <td>true</td>
+      </tr><tr>
         <td><b>targetHost</b></td>
         <td>string</td>
         <td>
@@ -8137,6 +8151,17 @@ It is ignored for other modes.
         </tr>
     </thead>
     <tbody><tr>
+        <td><b>installDemoLoki</b></td>
+        <td>boolean</td>
+        <td>
+          Set `installDemoLoki` to `true` to automatically create Loki deployment, service and storage.
+This is useful for development and demo purposes. Do not use it in production.
+[Unsupported (*)].<br/>
+          <br/>
+            <i>Default</i>: false<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
         <td><b>tenantID</b></td>
         <td>string</td>
         <td>
@@ -8398,7 +8423,7 @@ enriches them, generates metrics, and forwards them to the Loki persistence laye
         <td><b>addZone</b></td>
         <td>boolean</td>
         <td>
-          `addZone` allows availability zone awareness by labelling flows with their source and destination zones.
+          `addZone` allows availability zone awareness by labeling flows with their source and destination zones.
 This feature requires the "topology.kubernetes.io/zone" label to be set on nodes.<br/>
         </td>
         <td>false</td>
@@ -8558,7 +8583,7 @@ For more information, see https://kubernetes.io/docs/concepts/configuration/mana
         <td><b><a href="#flowcollectorspecprocessorsubnetlabels">subnetLabels</a></b></td>
         <td>object</td>
         <td>
-          `subnetLabels` allows to define custom labels on subnets and IPs or to enable automatic labelling of recognized subnets in OpenShift, which is used to identify cluster external traffic.
+          `subnetLabels` allows to define custom labels on subnets and IPs or to enable automatic labeling of recognized subnets in OpenShift, which is used to identify cluster external traffic.
 When a subnet matches the source or destination IP of a flow, a corresponding field is added: `SrcSubnetLabel` or `DstSubnetLabel`.<br/>
         </td>
         <td>false</td>
@@ -10414,9 +10439,10 @@ If the key is empty, operator must be Exists; this combination means to match al
         <td>string</td>
         <td>
           Operator represents a key's relationship to the value.
-Valid operators are Exists and Equal. Defaults to Equal.
+Valid operators are Exists, Equal, Lt, and Gt. Defaults to Equal.
 Exists is equivalent to wildcard for value, so that a pod can
-tolerate all taints of a particular category.<br/>
+tolerate all taints of a particular category.
+Lt and Gt perform numeric comparisons (requires feature gate TaintTolerationComparisonOperators).<br/>
         </td>
         <td>false</td>
       </tr><tr>
@@ -11514,21 +11540,22 @@ available.<br/>
         </tr>
     </thead>
     <tbody><tr>
-        <td><b><a href="#flowcollectorspecprocessormetricsalertsindex">alerts</a></b></td>
-        <td>[]object</td>
-        <td>
-          `alerts` is a list of alerts to be created for Prometheus AlertManager, organized by templates and variants.
-More information on alerts: https://github.com/netobserv/network-observability-operator/blob/main/docs/Alerts.md<br/>
-        </td>
-        <td>false</td>
-      </tr><tr>
         <td><b>disableAlerts</b></td>
         <td>[]string</td>
         <td>
           `disableAlerts` is a list of alert groups that should be disabled from the default set of alerts.
 Possible values are: `NetObservNoFlows`, `NetObservLokiError`, `PacketDropsByKernel`, `PacketDropsByDevice`, `IPsecErrors`, `NetpolDenied`,
-`LatencyHighTrend`, `DNSErrors`, `DNSNxDomain`, `ExternalEgressHighTrend`, `ExternalIngressHighTrend`.
-More information on alerts: https://github.com/netobserv/network-observability-operator/blob/main/docs/Alerts.md<br/>
+`LatencyHighTrend`, `DNSErrors`, `DNSNxDomain`, `ExternalEgressHighTrend`, `ExternalIngressHighTrend`, `Ingress5xxErrors`, `IngressHTTPLatencyTrend`.
+More information on alerts: https://github.com/netobserv/network-observability-operator/blob/main/docs/HealthRules.md<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b><a href="#flowcollectorspecprocessormetricshealthrulesindex">healthRules</a></b></td>
+        <td>[]object</td>
+        <td>
+          `healthRules` is a list of health rules to be created for Prometheus, organized by templates and variants.
+Each health rule can be configured to generate either alerts or recording rules based on the mode field.
+More information on health rules: https://github.com/netobserv/network-observability-operator/blob/main/docs/HealthRules.md<br/>
         </td>
         <td>false</td>
       </tr><tr>
@@ -11558,7 +11585,7 @@ More information, with full list of available metrics: https://github.com/netobs
 </table>
 
 
-### FlowCollector.spec.processor.metrics.alerts[index]
+### FlowCollector.spec.processor.metrics.healthRules[index]
 <sup><sup>[↩ Parent](#flowcollectorspecprocessormetrics)</sup></sup>
 
 
@@ -11578,27 +11605,42 @@ More information, with full list of available metrics: https://github.com/netobs
         <td><b>template</b></td>
         <td>enum</td>
         <td>
-          Alert template name.
+          Health rule template name.
 Possible values are: `PacketDropsByKernel`, `PacketDropsByDevice`, `IPsecErrors`, `NetpolDenied`,
-`LatencyHighTrend`, `DNSErrors`, `DNSNxDomain`, `ExternalEgressHighTrend`, `ExternalIngressHighTrend`.
-More information on alerts: https://github.com/netobserv/network-observability-operator/blob/main/docs/Alerts.md<br/>
+`LatencyHighTrend`, `DNSErrors`, `DNSNxDomain`, `ExternalEgressHighTrend`, `ExternalIngressHighTrend`, `Ingress5xxErrors`, `IngressHTTPLatencyTrend`.
+Note: `NetObservNoFlows` and `NetObservLokiError` are alert-only and cannot be used as health rules.
+More information on health rules: https://github.com/netobserv/network-observability-operator/blob/main/docs/HealthRules.md<br/>
           <br/>
-            <i>Enum</i>: PacketDropsByKernel, PacketDropsByDevice, IPsecErrors, NetpolDenied, LatencyHighTrend, DNSErrors, DNSNxDomain, ExternalEgressHighTrend, ExternalIngressHighTrend<br/>
+            <i>Enum</i>: PacketDropsByKernel, PacketDropsByDevice, IPsecErrors, NetpolDenied, LatencyHighTrend, DNSErrors, DNSNxDomain, ExternalEgressHighTrend, ExternalIngressHighTrend, Ingress5xxErrors, IngressHTTPLatencyTrend<br/>
         </td>
         <td>true</td>
       </tr><tr>
-        <td><b><a href="#flowcollectorspecprocessormetricsalertsindexvariantsindex">variants</a></b></td>
+        <td><b><a href="#flowcollectorspecprocessormetricshealthrulesindexvariantsindex">variants</a></b></td>
         <td>[]object</td>
         <td>
           A list of variants for this template<br/>
         </td>
         <td>true</td>
+      </tr><tr>
+        <td><b>mode</b></td>
+        <td>enum</td>
+        <td>
+          Mode defines whether this health rule should be generated as an alert or a recording rule.
+Possible values are: `Alert` (default), `Recording`.
+Recording rules violations are visible in the Network Health dashboard without generating any Prometheus alert.
+This provides an alternative way of getting Health information for SRE and cluster admins who may find
+many new alerts burdensome.<br/>
+          <br/>
+            <i>Enum</i>: Alert, Recording<br/>
+            <i>Default</i>: Alert<br/>
+        </td>
+        <td>false</td>
       </tr></tbody>
 </table>
 
 
-### FlowCollector.spec.processor.metrics.alerts[index].variants[index]
-<sup><sup>[↩ Parent](#flowcollectorspecprocessormetricsalertsindex)</sup></sup>
+### FlowCollector.spec.processor.metrics.healthRules[index].variants[index]
+<sup><sup>[↩ Parent](#flowcollectorspecprocessormetricshealthrulesindex)</sup></sup>
 
 
 
@@ -11614,11 +11656,12 @@ More information on alerts: https://github.com/netobserv/network-observability-o
         </tr>
     </thead>
     <tbody><tr>
-        <td><b><a href="#flowcollectorspecprocessormetricsalertsindexvariantsindexthresholds">thresholds</a></b></td>
+        <td><b><a href="#flowcollectorspecprocessormetricshealthrulesindexvariantsindexthresholds">thresholds</a></b></td>
         <td>object</td>
         <td>
-          Thresholds of the alert per severity.
-They are expressed as a percentage of errors above which the alert is triggered. They must be parsable as floats.<br/>
+          Thresholds of the health rule per severity.
+They are expressed as a percentage of errors above which the alert is triggered. They must be parsable as floats.
+Required for both alert and recording modes<br/>
         </td>
         <td>true</td>
       </tr><tr>
@@ -11640,30 +11683,42 @@ When provided, it must be parsable as a float.<br/>
         </td>
         <td>false</td>
       </tr><tr>
+        <td><b>mode</b></td>
+        <td>enum</td>
+        <td>
+          Mode overrides the health rule mode for this specific variant.
+If not specified, inherits from the parent health rule's mode.
+Possible values are: `Alert`, `Recording`.<br/>
+          <br/>
+            <i>Enum</i>: Alert, Recording<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
         <td><b>trendDuration</b></td>
         <td>string</td>
         <td>
-          For trending alerts, the duration interval for baseline comparison. For example, "2h" means comparing against a 2-hours average. Defaults to 2h.<br/>
+          For trending health rules, the duration interval for baseline comparison. For example, "2h" means comparing against a 2-hours average. Defaults to 2h.<br/>
         </td>
         <td>false</td>
       </tr><tr>
         <td><b>trendOffset</b></td>
         <td>string</td>
         <td>
-          For trending alerts, the time offset for baseline comparison. For example, "1d" means comparing against yesterday. Defaults to 1d.<br/>
+          For trending health rules, the time offset for baseline comparison. For example, "1d" means comparing against yesterday. Defaults to 1d.<br/>
         </td>
         <td>false</td>
       </tr></tbody>
 </table>
 
 
-### FlowCollector.spec.processor.metrics.alerts[index].variants[index].thresholds
-<sup><sup>[↩ Parent](#flowcollectorspecprocessormetricsalertsindexvariantsindex)</sup></sup>
+### FlowCollector.spec.processor.metrics.healthRules[index].variants[index].thresholds
+<sup><sup>[↩ Parent](#flowcollectorspecprocessormetricshealthrulesindexvariantsindex)</sup></sup>
 
 
 
-Thresholds of the alert per severity.
+Thresholds of the health rule per severity.
 They are expressed as a percentage of errors above which the alert is triggered. They must be parsable as floats.
+Required for both alert and recording modes
 
 <table>
     <thead>
@@ -12052,7 +12107,7 @@ This setting is ignored if `collectionMode` is different from `AllowList`.<br/>
 
 
 
-`subnetLabels` allows to define custom labels on subnets and IPs or to enable automatic labelling of recognized subnets in OpenShift, which is used to identify cluster external traffic.
+`subnetLabels` allows to define custom labels on subnets and IPs or to enable automatic labeling of recognized subnets in OpenShift, which is used to identify cluster external traffic.
 When a subnet matches the source or destination IP of a flow, a corresponding field is added: `SrcSubnetLabel` or `DstSubnetLabel`.
 
 <table>
@@ -12068,8 +12123,10 @@ When a subnet matches the source or destination IP of a flow, a corresponding fi
         <td><b><a href="#flowcollectorspecprocessorsubnetlabelscustomlabelsindex">customLabels</a></b></td>
         <td>[]object</td>
         <td>
-          `customLabels` allows to customize subnets and IPs labelling, such as to identify cluster-external workloads or web services.
-If you enable `openShiftAutoDetect`, `customLabels` can override the detected subnets in case they overlap.<br/>
+          `customLabels` allows you to customize subnets and IPs labeling, such as to identify cluster external workloads or web services.
+External subnets must be labeled with the prefix `EXT:`, or not labeled at all, in order to work with default quick filters and some metrics examples provided.<br/>
+If `openShiftAutoDetect` is disabled or you are not using OpenShift, it is recommended to manually configure labels for the cluster subnets, to distinguish internal traffic from external traffic.<br/>
+If `openShiftAutoDetect` is enabled, `customLabels` overrides the detected subnets when they overlap.<br/><br/>
         </td>
         <td>false</td>
       </tr><tr>
@@ -12112,7 +12169,8 @@ SubnetLabel allows to label subnets and IPs, such as to identify cluster-externa
         <td><b>name</b></td>
         <td>string</td>
         <td>
-          Label name, used to flag matching flows.<br/>
+          Label name, used to flag matching flows.
+External subnets must be labeled with the prefix `EXT:`, or not labeled at all, in order to work with default quick filters and some metrics examples provided.<br/><br/>
         </td>
         <td>true</td>
       </tr></tbody>
@@ -12167,8 +12225,8 @@ Prometheus querying configuration, such as client settings, used in the Console 
         <td>enum</td>
         <td>
           `mode` must be set according to the type of Prometheus installation that stores NetObserv metrics:<br>
-- Use `Auto` to try configuring automatically. In OpenShift, it uses the Thanos querier from OpenShift Cluster Monitoring<br>
-- Use `Manual` for a manual setup<br><br/>
+- Use `Auto` to try configuring automatically. In OpenShift, it uses the Thanos querier from OpenShift Cluster Monitoring.<br>
+- Use `Manual` for a manual setup.<br><br/>
           <br/>
             <i>Enum</i>: Manual, Auto<br/>
             <i>Default</i>: Auto<br/>
@@ -12179,7 +12237,7 @@ Prometheus querying configuration, such as client settings, used in the Console 
         <td>boolean</td>
         <td>
           When `enable` is `true`, the Console plugin queries flow metrics from Prometheus instead of Loki whenever possible.
-It is enbaled by default: set it to `false` to disable this feature.
+It is enabled by default: set it to `false` to disable this feature.
 The Console plugin can use either Loki or Prometheus as a data source for metrics (see also `spec.loki`), or both.
 Not all queries are transposable from Loki to Prometheus. Hence, if Loki is disabled, some features of the plugin are disabled as well,
 such as getting per-pod information or viewing raw flows.
@@ -12279,17 +12337,17 @@ When used in OpenShift it can be left empty to use the Console API instead.
         </tr>
     </thead>
     <tbody><tr>
-        <td><b>url</b></td>
-        <td>string</td>
-        <td>
-          `url` is the address of an existing Prometheus AlertManager service to use for querying alerts.<br/>
-        </td>
-        <td>true</td>
-      </tr><tr>
         <td><b><a href="#flowcollectorspecprometheusqueriermanualalertmanagertls">tls</a></b></td>
         <td>object</td>
         <td>
           TLS client configuration for Prometheus AlertManager URL.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>url</b></td>
+        <td>string</td>
+        <td>
+          `url` is the address of an existing Prometheus AlertManager service to use for querying alerts.<br/>
         </td>
         <td>false</td>
       </tr></tbody>
@@ -12670,6 +12728,7 @@ If the namespace is different, the config map or the secret is copied so that it
         <td>string</td>
         <td>
           Namespace where console plugin and flowlogs-pipeline have been deployed.
+
 Deprecated: annotations are used instead<br/>
         </td>
         <td>false</td>

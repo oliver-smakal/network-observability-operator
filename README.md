@@ -4,29 +4,29 @@
 [![Artifact HUB](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/NetObserv)](https://artifacthub.io/packages/helm/netobserv/netobserv-operator)
 [![Go Report Card](https://goreportcard.com/badge/github.com/netobserv/network-observability-operator)](https://goreportcard.com/report/github.com/netobserv/network-observability-operator)
 
-NetObserv Operator is a Kubernetes / OpenShift operator for network observability. It deploys a monitoring pipeline that consists in:
-- an eBPF agent, that generates network flows from captured packets
-- flowlogs-pipeline, a component that collects, enriches and exports these flows
-- when used in OpenShift, a Console plugin for flows visualization with powerful filtering options, a topology representation and more
+NetObserv Operator is a Kubernetes operator for network observability. It deploys a monitoring pipeline that consists in:
+- An eBPF agent, that generates network flows from captured packets.
+- Flowlogs-pipeline, a component that collects, enriches and exports these flows.
+- A web console for flows visualization with powerful filtering options, a topology representation, a network health view, etc.
 
 Flow data is then available in multiple ways, each optional:
 
-- As Prometheus metrics
-- As raw flow logs stored in Loki
-- As raw flow logs exported to a collector
+- As Prometheus metrics.
+- As raw flow logs stored in Loki.
+- As raw flow logs exported to a collector via Kafka, OpenTelemetry or IPFIX.
 
 ## Getting Started
 
 You can install the NetObserv Operator using [Helm](https://helm.sh/), or directly from sources.
 
-In OpenShift, NetObserv is named Network Observability operator and can be found in OperatorHub as an OLM operator. This section does not apply to it: please refer to the [OpenShift documentation](docs.redhat.com/en/documentation/openshift_container_platform/latest/html/network_observability/installing-network-observability-operators) in that case.
-
-> [!IMPORTANT]
-> NetObserv community was previously distributed via [OperatorHub](https://operatorhub.io/operator/netobserv-operator). This installation method is replaced with a helm chart. If you previously installed NetObserv community from OperatorHub, we recommend that you uninstall it, and re-install using the helm chart. The operation should not cause any data loss.
+> [!TIP]
+NetObserv can be used in downstream products, which may provide their own documentation. If you are using such a product, please refer to that documentation instead:
+> 
+> - On OpenShift: [see Network Observability operator](https://docs.redhat.com/en/documentation/openshift_container_platform/latest/html/network_observability/installing-network-observability-operators).
 
 ### Pre-requisite
 
-The following architectures are supported: amd64, arm64, ppc64le and s390x.
+The following architectures are supported: _amd64_, _arm64_, _ppc64le_ and _s390x_.
 
 NetObserv has a couple of dependencies that must be installed on your cluster:
 
@@ -54,12 +54,10 @@ Loki is not mandatory but improves the overall experience with NetObserv.
 helm repo add netobserv https://netobserv.io/static/helm/ --force-update
 
 # Standalone install, including dependencies:
-helm install my-netobserv -n netobserv --create-namespace --set standaloneConsole.enable=true --set install.loki=true --set install.prom-stack=true netobserv/netobserv-operator
+helm install my-netobserv -n netobserv --create-namespace --set install.loki=true --set install.prom-stack=true netobserv/netobserv-operator
 
 # OR minimal install (Prometheus/Loki must be installed separately)
-helm install my-netobserv -n netobserv --create-namespace --set standaloneConsole.enable=true netobserv/netobserv-operator
-
-# If you're in OpenShift, you can omit "--set standaloneConsole.enable=true" to use the Console plugin instead.
+helm install my-netobserv -n netobserv --create-namespace netobserv/netobserv-operator
 ```
 
 You can now create a `FlowCollector` resource. Refer to the [Configuration section](#configuration) of this document. A short `FlowCollector` should work, using most default values, plus with the standalone console enabled:
@@ -75,9 +73,11 @@ spec:
   networkPolicy:
     enable: false
   consolePlugin:
+    standalone: true
+  processor:
     advanced:
       env:
-        TEST_CONSOLE: "true"
+        SERVER_NOTLS: "true"
   loki:
     mode: Monolithic
     monolithic:
@@ -93,10 +93,9 @@ EOF
 ```
 
 A few remarks:
-- While the [web console](https://github.com/netobserv/network-observability-console-plugin) is primarily designed as a plugin for the OpenShift Console, it is still possible to deploy it as a standalone, which the dev team sometimes use for testing. This is why it is mentioned as "TEST_CONSOLE" here.
-- If you're in OpenShift, you should omit "TEST_CONSOLE: true" to use the Console plugin instead, which offers a better / more integrated experience.
 - You can change the Prometheus and Loki URLs depending on your installation. This example works if you use the "standalone" installation described above, with `install.loki=true` and `install.prom-stack=true`. Check more configuration options for [Prometheus](https://github.com/netobserv/network-observability-operator/blob/main/docs/FlowCollector.md#flowcollectorspecprometheus-1) and [Loki](https://github.com/netobserv/network-observability-operator/blob/main/docs/FlowCollector.md#flowcollectorspecloki-1).
 - You can enable networkPolicy, which makes the operator lock down the namespaces that it manages; however, this is highly dependent on your cluster topology, and may cause malfunctions, such as preventing NetObserv pods from communicating with the Kube API server.
+- The processor env `SERVER_NOTLS` means that the communication between eBPF agents and Flowlogs-pipeline won't be encrypted. To enable TLS, you need to supply the TLS certificates to Flowlogs-pipeline (a Secret named `flowlogs-pipeline-cert`), and the CA to the eBPF agents (a ConfigMap named `flowlogs-pipeline-ca` in the privileged namespace). [Check this issue](https://github.com/netobserv/network-observability-operator/issues/2360) if you want to help making it simpler.
 
 To view the test console, you can port-forward 9001:
 
@@ -139,11 +138,9 @@ Refer to the [Configuration section](#configuration) of this document.
 
 Historically, Grafana Loki was a strict dependency but it isn't anymore. If you don't want to install it, you can still get the Prometheus metrics, and/or export raw flows to a custom collector. But be aware that some of the Console plugin features will be disabled. For instance, you will not be able to view raw flows there, and the metrics / topology will have a more limited level of details, missing information such as pods or IPs.
 
-### OpenShift Console
+### Web Console
 
-_Pre-requisite: OpenShift 4.10 or above_
-
-If the OpenShift Console is detected in the cluster, a console plugin is deployed when a `FlowCollector` is installed. It adds new pages and tabs to the console:
+When `FlowCollector` is installed, a standalone web console is deployed or, when available, a console plugin. It provides the following views:
 
 #### Overview metrics
 
@@ -165,12 +162,6 @@ _This screenshot shows the NetObserv architecture itself: Nodes (via eBPF agents
 The table view shows raw flows, ie. non aggregated, still with the same filtering options, and configurable columns.
 
 ![Flow table](./docs/assets/network-traffic-main.png)
-
-#### Integration with existing console views
-
-These views are accessible directly from the main menu, and also as contextual tabs for any Pod, Deployment, Service (etc.) in their details page, with filters set to focus on that particular resource.
-
-![Contextual topology](./docs/assets/topology-pod.png)
 
 ## Configuration
 
@@ -206,15 +197,17 @@ More information on Prometheus metrics is available in a dedicated page: [Metric
 
 ### Performance fine-tuning
 
-In addition to sampling and using Kafka or not, other settings can help you get an optimal setup without compromising on the observability.
+In addition to sampling and using Kafka or not, other settings can help you get an optimal setup, with or without compromising on the observability.
 
 Here is what you should pay attention to:
 
-- Resource requirements and limits (`spec.agent.ebpf.resources`, `spec.agent.processor.resources`): adapt the resource requirements and limits to the load and memory usage you expect on your cluster. The default limits (800MB) should be sufficient for most medium sized clusters. You can read more about reqs and limits [here](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/).
-
-- eBPF agent's cache max flows (`spec.agent.ebpf.cacheMaxFlows`) and timeout (`spec.agent.ebpf.cacheActiveTimeout`) control how often flows are reported by the agents. The higher are `cacheMaxFlows` and `cacheActiveTimeout`, the less traffic will be generated by the agents themselves, which also ties with less CPU load. But on the flip side, it leads to a slightly higher memory consumption, and might generate more latency in the flow collection. There is [a blog entry](https://github.com/netobserv/documents/blob/main/blogs/agent_metrics_perf/index.md) dedicated to this fine-tuning.
+- eBPF agent's cache eviction interval (`spec.agent.ebpf.cacheActiveTimeout`) controls how often flows are reported by the agents. The higher it is, the more aggregated the flows are, which results in less traffic sent by the agents themselves, and also ties with less CPU load. But on the flip side, it leads to a slightly higher memory consumption in the agent, and generates more latency in the flow collection. It must be configured in relation with the max flows parameters (`spec.agent.ebpf.cacheMaxFlows`), which defines the size of the eBPF data structures, to make sure there is always enough room for new flows. There is [a blog entry](https://netobserv.io/posts/performance-fine-tuning-a-deep-dive-in-ebpf-agent-metrics/) dedicated to this tuning.
 
 - It is possible to reduce the overall observed traffic by restricting or excluding interfaces via `spec.agent.ebpf.interfaces` and `spec.agent.ebpf.excludeInterfaces`. Note that the interface names may vary according to the CNI used.
+
+- You can also add [eBPF filters](https://netobserv.io/posts/enhancing-netobserv-by-introducing-multi-rules-flow-filtering-capability-in-ebpf/) and [flowlogs-pipeline filters](https://github.com/netobserv/flowlogs-pipeline/blob/main/docs/filtering.md) to further narrow down what's being collected, if you find that you don't need every kind of flows. The former has the greatest impact on the performance of each component, while the latter mainly improves the storage/Loki end of the pipeline.
+
+- Resource requirements and limits (`spec.agent.ebpf.resources`, `spec.agent.processor.resources`): adapt the resource requirements and limits to the load and memory usage you expect on your cluster. The default limits (800MB) should be sufficient for most medium sized clusters. You can read more about reqs and limits [here](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/).
 
 - Each component offers more advanced settings via `spec.agent.ebpf.advanced`, `spec.processor.advanced`, `spec.loki.advanced` and `spec.consolePlugin.advanced`. The agent has [environment variables](https://github.com/netobserv/netobserv-ebpf-agent/blob/main/docs/config.md) that you can set through `spec.agent.ebpf.advanced.env`.
 
@@ -254,26 +247,31 @@ Since `FlowCollector v1beta2`, NetObserv is automatically configured with multi-
 To give flow logs access to a `test` user, run:
 
 ```bash
-oc adm policy add-cluster-role-to-user netobserv-reader test
+oc adm policy add-cluster-role-to-user netobserv-loki-reader test
 ```
 
-More information about multi-tenancy can be found on [this page](https://github.com/netobserv/documents/blob/main/loki_operator.md#netobserv-configuration).
-
-Note that multi-tenancy is not possible without using the Loki Operator.
+More information about multi-tenancy can be found on [this page](https://github.com/netobserv/documents/blob/main/multitenancy.md).
 
 #### Network Policy
 
-For a production deployment, it is also highly recommended to lock down the `netobserv` namespace (or wherever NetObserv is installed) using network policies.
-An example of network policy is [provided here](https://github.com/netobserv/documents/blob/main/examples/lockdown-netobserv.yaml).
+For a production deployment, it is highly recommended to lock down the `netobserv` namespace (or wherever NetObserv is installed) using network policies.
+
+You can set `spec.networkPolicy.enable` to `true` to make NetObserv install automatically a network policy. The policy may need to be fined-tuned for your environment (e.g. for access to kube apiserver, or Prometheus), by adding authorized namespaces.
+
+A simple example of network policy is [provided here](https://github.com/netobserv/documents/blob/main/examples/lockdown-netobserv.yaml).
 
 #### Communications
 
-By default, communications between internal components are not secured. Note that, when using the Loki Operator, securing communication with TLS is necessary. There are several places where TLS can be set up:
+Internal communications may be encrypted, depending on the configuration:
 
-- Connections to Loki (from the processor `flowlogs-pipeline` and from the Console plugin), by setting `spec.loki.tls`.
-- With Kafka (both on producer and consumer sides), by setting `spec.kafka.tls`. Mutual TLS is supported here.
-- The metrics server running in the processor (`flowlogs-pipeline`) can listen using TLS, via `spec.processor.metrics.server.tls`.
-- The Console plugin server always uses TLS.
+- Between eBPF agents and flowlogs-pipeline, depending on `deploymentModel`:
+  - `Service` (default): it uses TLS by default.
+  - `Kafka`: it is unencrypted by default and can be configured via `spec.kafka.tls` (mTLS is also supported here).
+  - `Direct`: it is unencrypted, but limited to localhost.
+- Communications to Loki:
+  - When Loki mode is `LokiStack`, TLS is used.
+  - In other modes, it is unencrypted by default and can be configured via `spec.loki.tls`.
+- The operator webhooks and the console plugin server always use TLS.
 
 ## Architecture
 

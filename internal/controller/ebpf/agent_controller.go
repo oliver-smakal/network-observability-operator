@@ -56,7 +56,6 @@ const (
 	envKafkaSASLIDPath            = "KAFKA_SASL_CLIENT_ID_PATH"
 	envKafkaSASLSecretPath        = "KAFKA_SASL_CLIENT_SECRET_PATH"
 	envLogLevel                   = "LOG_LEVEL"
-	envGoMemLimit                 = "GOMEMLIMIT"
 	envEnablePktDrop              = "ENABLE_PKT_DROPS"
 	envEnableDNSTracking          = "ENABLE_DNS_TRACKING"
 	envEnableFlowRTT              = "ENABLE_RTT"
@@ -75,27 +74,27 @@ const (
 	envDNSTrackingPort            = "DNS_TRACKING_PORT"
 	envPreferredInterface         = "PREFERRED_INTERFACE_FOR_MAC_PREFIX"
 	envAttachMode                 = "TC_ATTACH_MODE"
+	envOVNObservHostMountPath     = "OVN_OBSERV_HOST_MOUNT_PATH"
 	envListSeparator              = ","
 )
 
 const (
-	exportKafka                 = "kafka"
-	exportGRPC                  = "grpc"
-	kafkaCerts                  = "kafka-certs"
-	averageMessageSize          = 100
-	bpfTraceMountName           = "bpf-kernel-debug"
-	bpfTraceMountPath           = "/sys/kernel/debug"
-	bpfNetNSMountName           = "var-run-netns"
-	bpfNetNSMountPath           = "/var/run/netns"
-	droppedFlowsAlertThreshold  = 100
-	ovnObservMountName          = "var-run-ovn"
-	ovnObservMountPath          = "/var/run/ovn"
-	ovnObservHostMountPath      = "/var/run/ovn-ic"
-	ovsMountPath                = "/var/run/openvswitch"
-	ovsHostMountPath            = "/var/run/openvswitch"
-	ovsMountName                = "var-run-ovs"
-	defaultNetworkEventsGroupID = "10"
-	defaultPreferredInterface   = "0a:58=eth0" // Hard-coded default config to deal with OVN-generated MACs
+	exportKafka                     = "kafka"
+	exportGRPC                      = "grpc"
+	averageMessageSize              = 100
+	bpfTraceMountName               = "bpf-kernel-debug"
+	bpfTraceMountPath               = "/sys/kernel/debug"
+	bpfNetNSMountName               = "var-run-netns"
+	bpfNetNSMountPath               = "/var/run/netns"
+	droppedFlowsAlertThreshold      = 100
+	ovnObservMountName              = "var-run-ovn"
+	ovnObservMountPath              = "/var/run/ovn"
+	ovnObservHostMountPathOpenShift = "/var/run/ovn-ic"
+	ovsMountPath                    = "/var/run/openvswitch"
+	ovsHostMountPath                = "/var/run/openvswitch"
+	ovsMountName                    = "var-run-ovs"
+	defaultNetworkEventsGroupID     = "10"
+	defaultPreferredInterface       = "0a:58=eth0" // Hard-coded default config to deal with OVN-generated MACs
 )
 
 const (
@@ -222,6 +221,7 @@ func (c *AgentController) desired(ctx context.Context, coll *flowslatest.FlowCol
 	if err != nil {
 		return nil, err
 	}
+	advancedConfig := helper.GetAdvancedAgentConfig(coll.Spec.Agent.EBPF.Advanced)
 
 	if coll.Spec.Agent.EBPF.Metrics.Server.TLS.Type != flowslatest.ServerTLSDisabled {
 		var promTLS *flowslatest.CertificateReference
@@ -301,15 +301,22 @@ func (c *AgentController) desired(ctx context.Context, coll *flowslatest.FlowCol
 	if coll.Spec.Agent.EBPF.IsAgentFeatureEnabled(flowslatest.NetworkEvents) ||
 		coll.Spec.Agent.EBPF.IsAgentFeatureEnabled(flowslatest.UDNMapping) {
 		if !coll.Spec.Agent.EBPF.Privileged {
-			rlog.Error(fmt.Errorf("invalid configuration"), "To use Network Events Monitor"+
-				"features privileged mode needs to be enabled")
+			rlog.Error(fmt.Errorf("invalid configuration"), "To use NetworkEvents or UDNMapping features, privileged mode needs to be enabled")
 		} else {
+			hostPath := advancedConfig.Env[envOVNObservHostMountPath]
+			if hostPath == "" {
+				if c.ClusterInfo.IsOpenShift() {
+					hostPath = ovnObservHostMountPathOpenShift
+				} else {
+					hostPath = ovsHostMountPath
+				}
+			}
 			volume := corev1.Volume{
 				Name: ovnObservMountName,
 				VolumeSource: corev1.VolumeSource{
 					HostPath: &corev1.HostPathVolumeSource{
 						Type: newHostPathType(corev1.HostPathDirectory),
-						Path: ovnObservHostMountPath,
+						Path: hostPath,
 					},
 				},
 			}
@@ -361,8 +368,6 @@ func (c *AgentController) desired(ctx context.Context, coll *flowslatest.FlowCol
 		}
 		volumeMounts = append(volumeMounts, volumeMount)
 	}
-
-	advancedConfig := helper.GetAdvancedAgentConfig(coll.Spec.Agent.EBPF.Advanced)
 
 	return &v1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -487,11 +492,15 @@ func (c *AgentController) envConfig(ctx context.Context, coll *flowslatest.FlowC
 			skipTLS := flowslatest.IsEnvEnabled(advancedConfig.Env, "SERVER_NOTLS")
 			if !skipTLS {
 				// Send to FLP service using TLS
+				caConfigMapName := "flowlogs-pipeline-ca"
+				if c.ClusterInfo.IsOpenShift() {
+					caConfigMapName = "openshift-service-ca.crt"
+				}
 				tlsCfg := flowslatest.ClientTLS{
 					Enable: true,
 					CACert: flowslatest.CertificateReference{
 						Type:     flowslatest.RefTypeConfigMap,
-						Name:     "openshift-service-ca.crt",
+						Name:     caConfigMapName,
 						CertFile: "service-ca.crt",
 					},
 				}
@@ -726,16 +735,8 @@ func getEnvConfig(coll *flowslatest.FlowCollector, cinfo *cluster.Info) []corev1
 		})
 	}
 
-	// set GOMEMLIMIT which allows specifying a soft memory cap to force GC when resource limit is reached
-	// to prevent OOM
-	if coll.Spec.Agent.EBPF.Resources.Limits.Memory() != nil {
-		if memLimit, ok := coll.Spec.Agent.EBPF.Resources.Limits.Memory().AsInt64(); ok {
-			// we will set the GOMEMLIMIT to current memlimit - 10% as a headroom to account for
-			// memory sources the Go runtime is unaware of
-			memLimit -= int64(float64(memLimit) * 0.1)
-			config = append(config, corev1.EnvVar{Name: envGoMemLimit, Value: fmt.Sprint(memLimit)})
-		}
-	}
+	// set GOMEMLIMIT which allows specifying a soft memory cap to force GC when resource limit is reached to prevent OOM
+	config = helper.EnvFromReqsLimits(config, &coll.Spec.Agent.EBPF.Resources)
 
 	if coll.Spec.Agent.EBPF.IsPktDropEnabled() {
 		config = append(config, corev1.EnvVar{
