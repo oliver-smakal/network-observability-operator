@@ -1,6 +1,0 @@
-apiVersion: cache.httpproxy.com/v1
-kind: Memcached44553
-metadata:
-  name: memcached44553-sample
-spec:
-  size: 1

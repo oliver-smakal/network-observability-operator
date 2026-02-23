@@ -1,4 +1,4 @@
-package netobserv
+package netobserv_test
 
 import (
 	"testing"
