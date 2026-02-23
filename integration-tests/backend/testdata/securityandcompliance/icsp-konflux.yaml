@@ -1,0 +1,50 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: icsp-konflux-template
+objects:
+- apiVersion: operator.openshift.io/v1alpha1
+  kind: ImageContentSourcePolicy
+  metadata:
+    name: "${ICSPNAME}"
+  spec:
+    repositoryDigestMirrors:
+    - mirrors:
+      - quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator-bundle-release
+      source: registry.redhat.io/compliance/openshift-file-integrity-operator-bundle
+    - mirrors:
+      - quay.io/redhat-user-workloads/ocp-isc-tenant/file-integrity-operator-release
+      source: registry.redhat.io/compliance/openshift-file-integrity-rhel8-operator
+    - mirrors:
+      - quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-bundle-release
+      source: registry.redhat.io/compliance/openshift-compliance-operator-bundle
+    - mirrors:
+      - quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-release
+      source: registry.redhat.io/compliance/openshift-compliance-rhel8-operator
+    - mirrors:
+      - quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-content-release
+      source: registry.redhat.io/compliance/openshift-compliance-content-rhel8
+    - mirrors:
+      - quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-openscap-release
+      source: registry.redhat.io/compliance/openshift-compliance-openscap-rhel8
+    - mirrors:
+      - quay.io/redhat-user-workloads/ocp-isc-tenant/compliance-operator-must-gather-release
+      source: registry.redhat.io/compliance/openshift-compliance-must-gather-rhel8
+    - mirrors:
+      - quay.io/redhat-user-workloads/ocp-isc-tenant/security-profiles-operator-bundle-release
+      source: registry.redhat.io/compliance/openshift-security-profiles-operator-bundle
+    - mirrors:
+      - quay.io/redhat-user-workloads/ocp-isc-tenant/security-profiles-operator-release
+      source: registry.redhat.io/compliance/openshift-security-profiles-rhel8-operator
+    - mirrors:
+      - quay.io/redhat-user-workloads/ocp-isc-tenant/openshift-selinuxd-rhel8-container-release
+      source: registry.redhat.io/compliance/openshift-selinuxd-rhel8
+    - mirrors:
+      - quay.io/redhat-user-workloads/ocp-isc-tenant/openshift-selinuxd-rhel9-container-release
+      source: registry.redhat.io/compliance/openshift-selinuxd-rhel9
+    - mirrors:
+      - quay.io/redhat-user-workloads/ocp-isc-tenant/openshift-selinuxd-rhel10-container-release
+      source: registry.redhat.io/compliance/openshift-selinuxd-rhel10
+      
+parameters:
+- name: ICSPNAME

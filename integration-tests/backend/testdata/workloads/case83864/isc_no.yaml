@@ -1,0 +1,9 @@
+kind: ImageSetConfiguration
+apiVersion: mirror.openshift.io/v2alpha1
+mirror:
+  helm:
+    local:
+     - name: test-mirror-helm
+       path: test_mirror-helm-no.tgz
+       imagePaths:
+        - "{.spec.template.spec.containers[*].env[*].value}"

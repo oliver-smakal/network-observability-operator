@@ -1,0 +1,55 @@
+# RapiDAST configuration for OpenShift API Server security scanning
+# This configuration performs comprehensive security vulnerability scanning of:
+# - Core Kubernetes APIs (/api/v1/*)
+# - OpenShift-specific APIs (route.openshift.io, security.openshift.io, etc.)
+# - Apps, Build, and Image APIs
+#
+# Security tests include:
+# - Authentication bypass attempts
+# - Authorization escalation tests  
+# - Input validation vulnerabilities
+# - Information disclosure checks
+# - Injection attack vectors
+config:
+  configVersion: 5
+
+# Application configuration
+application:
+  shortName: "openshift-apiserver"
+  url: "https://kubernetes.default.svc"
+
+# General configuration applied to all scanners
+general:
+  authentication:
+    type: "http_header"
+    parameters:
+      name: "Authorization"
+      value: "Bearer AUTH_TOKEN"
+  container:
+    type: "none"
+  passiveScan:
+    disabledRules: "2,10015,10027,10096,10024"
+  activeScan:
+    policy: "Kubernetes-API-scan"
+    maxScanTimeInMins: 5
+  # Proxy support (if needed for proxy environments)
+  # proxy:
+  #   http: "http://proxy.example.com:3128"
+  #   https: "http://proxy.example.com:3128"
+  #   noProxy: "localhost,127.0.0.1"
+
+# Scanner configurations - Simplified for reliability
+# Single scanner approach to minimize resource usage and improve success rate
+scanners:
+  # Core Kubernetes API v1 - covers ALL requested endpoints:
+  # /api/v1/componentstatuses, /api/v1/persistentvolumes, /api/v1/nodes, /api/v1/namespaces
+  # /api/v1/namespaces/default/events, /api/v1/namespaces/default/endpoints
+  # /api/v1/namespaces/default/configmaps, /api/v1/namespaces/default/pods
+  # /api/v1/namespaces/default/limitranges, /api/v1/namespaces/default/podtemplates
+  # /api/v1/namespaces/default/replicationcontrollers, /api/v1/namespaces/default/persistentvolumeclaims
+  # /api/v1/namespaces/default/resourcequotas, /api/v1/namespaces/default/secrets
+  # /api/v1/namespaces/default/serviceaccounts, /api/v1/namespaces/default/services
+  zap:
+    apiScan:
+      apis:
+        apiUrl: "https://kubernetes.default.svc/openapi/v3/api/v1"

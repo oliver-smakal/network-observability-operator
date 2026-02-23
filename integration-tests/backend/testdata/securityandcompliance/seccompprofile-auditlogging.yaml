@@ -1,0 +1,39 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: seccompprofile-auditlogging-template
+objects:
+- apiVersion: security-profiles-operator.x-k8s.io/v1beta1
+  kind: SeccompProfile
+  metadata:
+    name: "${NAME}"
+    namespace: "${NAMESPACE}"
+  spec:
+    defaultAction: SCMP_ACT_ALLOW
+    syscalls:
+    - action: SCMP_ACT_LOG
+      names:
+      - read
+      - write
+      - openat
+      - close
+      - futex
+      - brk
+      - mmap
+      - mprotect
+      - munmap
+      - rt_sigaction
+      - rt_sigprocmask
+      - nanosleep
+      - clock_gettime
+      - getpid
+      - gettid
+      - socket
+      - connect
+      - recvfrom
+      - sendto
+      - execve
+      - clone
+parameters:
+- name: NAME
+- name: NAMESPACE

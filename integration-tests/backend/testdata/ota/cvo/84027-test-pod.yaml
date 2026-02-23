@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: networkpolicy-test-pod
+  namespace: openshift-cluster-version
+spec:
+  restartPolicy: Never
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: networkpolicy-test-pod
+      image: 'quay.io/curl/curl:latest'
+      command:
+        - "curl"
+        - "-s"
+        - "--connect-timeout"
+        - "10"
+        - "--max-time"
+        - "15"
+        - "https://www.google.com"
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault

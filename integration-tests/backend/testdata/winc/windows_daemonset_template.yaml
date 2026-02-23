@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ .Name }}
+  namespace: {{ .Namespace }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .AppLabel }}
+  template:
+    metadata:
+      labels:
+        app: {{ .AppLabel }}
+    spec:
+      nodeSelector:
+        kubernetes.io/os: windows
+      tolerations:
+      - key: "os"
+        operator: "Equal"
+        value: "Windows"
+        effect: "NoSchedule"
+      containers:
+      - name: {{ .ContainerName }}
+        image: {{ .ImageName }}
+        command:
+        - pwsh.exe
+        - -Command
+        - "while ($true) { Start-Sleep -Seconds 30 }"

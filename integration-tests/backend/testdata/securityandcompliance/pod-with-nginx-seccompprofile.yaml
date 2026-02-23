@@ -1,0 +1,26 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: pod-modify-template
+objects:
+- kind: Pod
+  apiVersion: v1
+  metadata:
+    name: "${NAME}"
+    namespace: "${NAMESPACE}"
+  spec:
+    containers:
+    - name: nginx
+      image: registry.access.redhat.com/ubi8/ubi:latest
+      command: ["sleep", "infinity"]
+      securityContext:
+        seccompProfile:
+          type: Localhost
+          localhostProfile: "${LOCALHOSTPROFILE}"
+parameters:
+- name: NAME
+- name: NAMESPACE
+- name: LOCALHOSTPROFILE
+
+
+

@@ -1,0 +1,64 @@
+apiVersion: machine.openshift.io/v1beta1
+kind: MachineSet
+metadata:
+  annotations:
+  labels:
+    machine.openshift.io/cluster-api-cluster: <infrastructureID>
+  name: <infrastructureID>-<name>-worker-<zone_suffix>
+  namespace: openshift-machine-api
+spec:
+  deletePolicy: Newest
+  replicas: 1
+  selector:
+    matchLabels:
+      machine.openshift.io/cluster-api-cluster: <infrastructureID>
+      machine.openshift.io/cluster-api-machineset: <infrastructureID>-<name>-worker-<zone_suffix>
+  template:
+    metadata:
+      labels:
+        machine.openshift.io/cluster-api-cluster: <infrastructureID>
+        machine.openshift.io/cluster-api-machine-role: worker
+        machine.openshift.io/cluster-api-machine-type: worker
+        machine.openshift.io/cluster-api-machineset: <infrastructureID>-<name>-worker-<zone_suffix>
+        machine.openshift.io/os-id: Windows
+        windowsmachineconfig.openshift.io/ignore: "true"
+    spec:
+      metadata:
+        labels:
+          node-role.kubernetes.io/worker: ""
+          type: byoh-node
+      providerSpec:
+        value:
+          apiVersion: machine.openshift.io/v1beta1
+          kind: GCPMachineProviderSpec
+          machineType: n1-standard-4
+          canIPForward: false
+          credentialsSecret:
+            name: gcp-cloud-credentials
+          deletionProtection: false
+          networkInterfaces:
+          - network: <infrastructureID>-network
+            subnetwork: <infrastructureID>-worker-subnet
+          projectID: <project>
+          region: <region>
+          zone: <zone>
+          tags:
+          - <infrastructureID>-worker
+          disks:
+          - autoDelete: true
+            boot: true
+            image: projects/windows-cloud/global/images/family/<gcp_windows_image>
+            sizeGb: 128
+            type: pd-ssd
+          serviceAccounts:
+          - email: <email>
+            scopes:
+            - https://www.googleapis.com/auth/cloud-platform
+          userDataSecret:
+            name: windows-user-data
+          # Add SSH key configuration for GCP
+          sshKeys:
+            - name: "gcp-ssh-key"  # Key name
+              publicKey: |
+                ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDKyo2CxXHRP3Q5Ay0ZOlxCNSuH3xCSB68exLwE9b1fbvnzHQLfczM2oMySmEKmAN/l+mDSbrXVqx5Aa+Q76nmPK31ALbwCw94dd6A5IeM6t9PguWiodosXXccm7CgAh61+CIM6FkbrSw8mEFlUd/5LqQoi5xe3Y4ioYinXgDRIcN2aNaKr/BDGyMsnn4l9w/gOf+pMRQdqOa/cctKEt7SzMtnONN
+
