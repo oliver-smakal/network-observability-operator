@@ -1,6 +1,0 @@
-apiVersion: ansiblebase.qetest.com/v1
-kind: Basetest
-metadata:
-  name: basetest-sample
-spec:
-  size: 2
