@@ -96,7 +96,7 @@ func (r Resource) applyFromTemplate(oc *exutil.CLI, parameters ...string) error 
 	compat_otp.AssertWaitPollNoErr(err, fmt.Sprintf("Can not process %v", parameters))
 	output, err := oc.AsAdmin().WithoutNamespace().Run("apply").Args("-f", file, "-n", r.Namespace).Output()
 	if err != nil {
-		return fmt.Errorf(output)
+		return fmt.Errorf("%s", output)
 	}
 	r.WaitForResourceToAppear(oc)
 	return nil
@@ -273,7 +273,7 @@ func doHTTPRequest(header http.Header, address, path, query, method string, quie
 		return nil, err
 	}
 	if !quiet {
-		e2e.Logf(us)
+		e2e.Logf("%s", us)
 	}
 
 	req, err := http.NewRequest(strings.ToUpper(method), us, requestBody)
