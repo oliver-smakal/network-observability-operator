@@ -34,3 +34,8 @@ exclude (
 )
 ```
 fixes `go mod tidy` issues.
+
+
+# adjust the execution of tests to ignore the kubernetes tests
+
+As k8s.io/kubernetes/test/e2e/framework is imported, it triggters tests inside of that package -> the test suite need to be adjusted to ignore these by default.
