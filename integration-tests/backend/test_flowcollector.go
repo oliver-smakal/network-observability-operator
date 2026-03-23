@@ -6,7 +6,7 @@ import (
 	"os"
 	"os/exec"
 
-	filePath "path/filepath"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -27,31 +27,37 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 		NOSource = CatalogSourceObjects{"stable", NOcatSrc.Name, NOcatSrc.Namespace}
 
 		// Template directories
-		baseDir         = compat_otp.FixturePath("testdata", "netobserv")
-		networkingDir   = compat_otp.FixturePath("testdata", "netobserv", "networking")
-		subscriptionDir = compat_otp.FixturePath("testdata", "netobserv", "subscription")
-		flowFixturePath = filePath.Join(baseDir, "flowcollector_v1beta2_template.yaml")
+		baseDir, _ = filepath.Abs("./testdata")
+		networkingDir   = filepath.Join(baseDir,"networking")
+		subscriptionDir = filepath.Join(baseDir,"subscription")
+		flowFixturePath = filepath.Join(baseDir, "flowcollector_v1beta2_template.yaml")
+
 
 		// Operator namespace object
 		OperatorNS = OperatorNamespace{
 			Name:              netobservNS,
-			NamespaceTemplate: filePath.Join(subscriptionDir, "namespace.yaml"),
+			NamespaceTemplate: filepath.Join(subscriptionDir, "namespace.yaml"),
 		}
 		NO = SubscriptionObjects{
 			OperatorName:  "netobserv-operator",
 			Namespace:     netobservNS,
 			PackageName:   NOPackageName,
-			Subscription:  filePath.Join(subscriptionDir, "sub-template.yaml"),
-			OperatorGroup: filePath.Join(subscriptionDir, "allnamespace-og.yaml"),
+			Subscription:  filepath.Join(subscriptionDir, "sub-template.yaml"),
+			OperatorGroup: filepath.Join(subscriptionDir, "allnamespace-og.yaml"),
 			CatalogSource: &NOSource,
 		}
-		imageDigest    = filePath.Join(subscriptionDir, "image-digest-mirror-set.yaml")
-		catSrcTemplate = filePath.Join(subscriptionDir, "catalog-source.yaml")
+		imageDigest    = filepath.Join(subscriptionDir, "image-digest-mirror-set.yaml")
+		catSrcTemplate = filepath.Join(subscriptionDir, "catalog-source.yaml")
 		catalogSource  = os.Getenv("MULTISTAGE_PARAM_OVERRIDE_NETOBSERV_CS_IMAGE")
 
 		kubeadminToken string
 		namespace      string
 	)
+
+	fmt.Println(baseDir)
+	fmt.Println(networkingDir)
+	fmt.Println(subscriptionDir)
+	fmt.Println(flowFixturePath)
 
 	g.BeforeEach(func() {
 		if strings.Contains(os.Getenv("E2E_RUN_TAGS"), "disconnected") {
@@ -186,7 +192,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 
 		g.By("Verify operator namespace logs are scraped")
 		operatorLogsPattern := fmt.Sprintf("%s/namespaces/openshift-netobserv-operator/pods/netobserv-controller-manager-*/manager/manager/logs/current.log", mustgatherLogsDir)
-		operatorlogs, err := filePath.Glob(operatorLogsPattern)
+		operatorlogs, err := filepath.Glob(operatorLogsPattern)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(len(operatorlogs)).Should(o.BeNumerically(">", 0), "No logs were saved to: "+operatorLogsPattern)
 		_, err = os.Stat(operatorlogs[0])
@@ -196,7 +202,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 		pods, err := compat_otp.GetAllPods(oc, namespace)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		flpLogsPattern := fmt.Sprintf("%s/namespaces/%s/pods/%s/flowlogs-pipeline/flowlogs-pipeline/logs/current.log", mustgatherLogsDir, namespace, pods[0])
-		podlogs, err := filePath.Glob(flpLogsPattern)
+		podlogs, err := filepath.Glob(flpLogsPattern)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(len(podlogs)).Should(o.BeNumerically(">", 0), "No logs were saved to: "+flpLogsPattern)
 		_, err = os.Stat(podlogs[0])
@@ -206,7 +212,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 		ebpfPods, err := compat_otp.GetAllPods(oc, namespace+"-privileged")
 		o.Expect(err).NotTo(o.HaveOccurred())
 		ebpfLogsPattern := fmt.Sprintf("%s/namespaces/%s/pods/%s/netobserv-ebpf-agent/netobserv-ebpf-agent/logs/current.log", mustgatherLogsDir, namespace+"-privileged", ebpfPods[0])
-		ebpfLogs, err := filePath.Glob(ebpfLogsPattern)
+		ebpfLogs, err := filepath.Glob(ebpfLogsPattern)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		o.Expect(len(ebpfLogs)).Should(o.BeNumerically(">", 0), "No logs were saved to: "+ebpfLogsPattern)
 		_, err = os.Stat(ebpfLogs[0])
@@ -290,7 +296,8 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 
 	g.Context("with Loki", func() {
 		var (
-			lokiDir = compat_otp.FixturePath("testdata", "netobserv", "loki")
+			lokiDir   = filepath.Join(baseDir,"loki")
+
 			// Loki Operator variables
 			lokiPackageName = "loki-operator"
 			lokiSource      CatalogSourceObjects
@@ -301,14 +308,14 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 				OperatorName:  "loki-operator-controller-manager",
 				Namespace:     loNS,
 				PackageName:   lokiPackageName,
-				Subscription:  filePath.Join(subscriptionDir, "sub-template.yaml"),
-				OperatorGroup: filePath.Join(subscriptionDir, "allnamespace-og.yaml"),
+				Subscription:  filepath.Join(subscriptionDir, "sub-template.yaml"),
+				OperatorGroup: filepath.Join(subscriptionDir, "allnamespace-og.yaml"),
 				CatalogSource: &lokiSource,
 			}
 
 			// LokiStack variables
 			ipStackType       string
-			lokiStackTemplate = filePath.Join(lokiDir, "lokistack-simple.yaml")
+			lokiStackTemplate = filepath.Join(lokiDir, "lokistack-simple.yaml")
 			lokiTenant        = "openshift-network"
 		)
 
@@ -539,7 +546,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 
 		g.It("Author:memodi-High-53595-High-49107-High-45304-High-54929-High-54840-High-68310-Verify flow correctness and metrics [Serial]", func() {
 			g.By("Deploying test server and client pods")
-			serverTemplatePath := filePath.Join(baseDir, "test-nginx-server_template.yaml")
+			serverTemplatePath := filepath.Join(baseDir, "test-nginx-server_template.yaml")
 			testServer := TestServerTemplate{
 				ServerNS: "test-server-54929",
 				Template: serverTemplatePath,
@@ -550,7 +557,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 			o.Expect(err).NotTo(o.HaveOccurred())
 			compat_otp.AssertAllPodsToBeReady(oc, testServer.ServerNS)
 
-			clientTemplatePath := filePath.Join(baseDir, "test-nginx-client_template.yaml")
+			clientTemplatePath := filepath.Join(baseDir, "test-nginx-client_template.yaml")
 			testClient := TestClientTemplate{
 				ServerNS:   testServer.ServerNS,
 				ClientNS:   "test-client-54929",
@@ -606,7 +613,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 			startTime := time.Now()
 
 			g.By("Deploying test server and client pods")
-			serverTemplate := filePath.Join(baseDir, "test-nginx-server_template.yaml")
+			serverTemplate := filepath.Join(baseDir, "test-nginx-server_template.yaml")
 			testServerTemplate := TestServerTemplate{
 				ServerNS: "test-server-60701",
 				Template: serverTemplate,
@@ -617,7 +624,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 			o.Expect(err).NotTo(o.HaveOccurred())
 			compat_otp.AssertAllPodsToBeReady(oc, testServerTemplate.ServerNS)
 
-			clientTemplate := filePath.Join(baseDir, "test-nginx-client_template.yaml")
+			clientTemplate := filepath.Join(baseDir, "test-nginx-client_template.yaml")
 
 			testClientTemplate := TestClientTemplate{
 				ServerNS: testServerTemplate.ServerNS,
@@ -698,7 +705,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 
 			g.By("Creating client server template and template CRBs for testusers")
 			// create templates for testuser to be used later
-			testUserstemplate := filePath.Join(baseDir, "testuser-client-server_template.yaml")
+			testUserstemplate := filepath.Join(baseDir, "testuser-client-server_template.yaml")
 			stdout, stderr, err := oc.AsAdmin().Run("apply").Args("-f", testUserstemplate).Outputs()
 			o.Expect(err).NotTo(o.HaveOccurred())
 			o.Expect(stderr).To(o.BeEmpty())
@@ -718,7 +725,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 			flow.CreateFlowcollector(oc)
 
 			g.By("Deploying test server and client pods")
-			serverTemplate := filePath.Join(baseDir, "test-nginx-server_template.yaml")
+			serverTemplate := filepath.Join(baseDir, "test-nginx-server_template.yaml")
 			testServerTemplate := TestServerTemplate{
 				ServerNS: "test-server-63839",
 				Template: serverTemplate,
@@ -728,7 +735,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 			o.Expect(err).NotTo(o.HaveOccurred())
 			compat_otp.AssertAllPodsToBeReady(oc, testServerTemplate.ServerNS)
 
-			clientTemplate := filePath.Join(baseDir, "test-nginx-client_template.yaml")
+			clientTemplate := filepath.Join(baseDir, "test-nginx-client_template.yaml")
 
 			testClientTemplate := TestClientTemplate{
 				ServerNS: testServerTemplate.ServerNS,
@@ -917,8 +924,8 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 
 		g.It("Author:aramesha-NonPreRelease-High-62989-Verify SCTP, ICMP, ICMPv6 traffic is observed [Disruptive]", func() {
 			var (
-				sctpClientPodTemplatePath = filePath.Join(networkingDir, "sctpclient.yaml")
-				sctpServerPodTemplatePath = filePath.Join(networkingDir, "sctpserver.yaml")
+				sctpClientPodTemplatePath = filepath.Join(networkingDir, "sctpclient.yaml")
+				sctpServerPodTemplatePath = filepath.Join(networkingDir, "sctpserver.yaml")
 				sctpServerPodname         = "sctpserver"
 				sctpClientPodname         = "sctpclient"
 			)
@@ -1024,7 +1031,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 
 		g.It("Author:aramesha-NonPreRelease-High-68125-Verify DSCP with NetObserv [Serial]", func() {
 			g.By("Deploying test server and client pods")
-			serverTemplate := filePath.Join(baseDir, "test-nginx-server_template.yaml")
+			serverTemplate := filepath.Join(baseDir, "test-nginx-server_template.yaml")
 			testServerTemplate := TestServerTemplate{
 				ServerNS: "test-server-68125",
 				Template: serverTemplate,
@@ -1034,7 +1041,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 			o.Expect(err).NotTo(o.HaveOccurred())
 			compat_otp.AssertAllPodsToBeReady(oc, testServerTemplate.ServerNS)
 
-			clientTemplate := filePath.Join(baseDir, "test-nginx-client_template.yaml")
+			clientTemplate := filepath.Join(baseDir, "test-nginx-client_template.yaml")
 			testClientTemplate := TestClientTemplate{
 				ServerNS: testServerTemplate.ServerNS,
 				ClientNS: "test-client-68125",
@@ -1050,8 +1057,8 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 			o.Expect(networkType).NotTo(o.BeEmpty())
 			if networkType == "ovnkubernetes" {
 				g.By("Deploy egressQoS for OVN CNI")
-				clientDSCPPath := filePath.Join(networkingDir, "test-client-DSCP.yaml")
-				egressQoSPath := filePath.Join(networkingDir, "egressQoS.yaml")
+				clientDSCPPath := filepath.Join(networkingDir, "test-client-DSCP.yaml")
+				egressQoSPath := filepath.Join(networkingDir, "egressQoS.yaml")
 				g.By("Deploy nginx client pod and egressQoS")
 				createResourceFromFile(oc, testClientTemplate.ClientNS, clientDSCPPath)
 				createResourceFromFile(oc, testClientTemplate.ClientNS, egressQoSPath)
@@ -1192,7 +1199,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 
 		g.It("Author:aramesha-NonPreRelease-Longduration-High-73175-Verify eBPF agent filtering [Serial]", func() {
 			g.By("Deploy test server and client pods")
-			serverTemplate := filePath.Join(baseDir, "test-nginx-server_template.yaml")
+			serverTemplate := filepath.Join(baseDir, "test-nginx-server_template.yaml")
 			testServerTemplate := TestServerTemplate{
 				ServerNS: "test-server-73175",
 				Template: serverTemplate,
@@ -1202,7 +1209,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 			o.Expect(err).NotTo(o.HaveOccurred())
 			compat_otp.AssertAllPodsToBeReady(oc, testServerTemplate.ServerNS)
 
-			clientTemplate := filePath.Join(baseDir, "test-nginx-client_template.yaml")
+			clientTemplate := filepath.Join(baseDir, "test-nginx-client_template.yaml")
 			testClientTemplate := TestClientTemplate{
 				ServerNS: testServerTemplate.ServerNS,
 				ClientNS: "test-client-73175",
@@ -1380,7 +1387,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 			flow.CreateFlowcollector(oc)
 
 			g.By("Deploy test server and client pods")
-			serverTemplate := filePath.Join(baseDir, "test-nginx-server_template.yaml")
+			serverTemplate := filepath.Join(baseDir, "test-nginx-server_template.yaml")
 			testServerTemplate := TestServerTemplate{
 				ServerNS:  "test-server-67782",
 				Template:  serverTemplate,
@@ -1391,7 +1398,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 			o.Expect(err).NotTo(o.HaveOccurred())
 			compat_otp.AssertAllPodsToBeReady(oc, testServerTemplate.ServerNS)
 
-			clientTemplate := filePath.Join(baseDir, "test-nginx-client_template.yaml")
+			clientTemplate := filepath.Join(baseDir, "test-nginx-client_template.yaml")
 			testClientTemplate := TestClientTemplate{
 				ServerNS:   testServerTemplate.ServerNS,
 				ClientNS:   "test-client-67782",
@@ -1425,8 +1432,8 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 		})
 
 		g.It("Author:aramesha-High-75656-Verify TCP flags [Disruptive]", func() {
-			SYNFloodMetricsPath := filePath.Join(baseDir, "SYN_flood_metrics_template.yaml")
-			SYNFloodAlertsPath := filePath.Join(baseDir, "SYN_flood_alert_template.yaml")
+			SYNFloodMetricsPath := filepath.Join(baseDir, "SYN_flood_metrics_template.yaml")
+			SYNFloodAlertsPath := filepath.Join(baseDir, "SYN_flood_alert_template.yaml")
 
 			g.By("Deploy flowcollector with eBPF filter to Reject flows with tcpFlags SYN-ACK and TCP Protocol")
 			filterRulesConfig := []map[string]string{
@@ -1475,7 +1482,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 			o.Expect(err).ToNot(o.HaveOccurred())
 
 			g.By("Deploy test client pod to induce SYN flooding")
-			template := filePath.Join(baseDir, "test-SYN-flood-client_template.yaml")
+			template := filepath.Join(baseDir, "test-SYN-flood-client_template.yaml")
 			testTemplate := TestClientTemplate{
 				ClientNS: "test-client-75656",
 				Template: template,
@@ -1526,14 +1533,14 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 
 		g.It("Author:aramesha-NonPreRelease-Longduration-Medium-78480-NetObserv with sampling 50 [Serial][Slow]", func() {
 			g.By("Deploy DNS pods")
-			DNSTemplate := filePath.Join(baseDir, "DNS-pods.yaml")
+			DNSTemplate := filepath.Join(baseDir, "DNS-pods.yaml")
 			DNSNamespace := "dns-traffic"
 			defer oc.DeleteSpecifiedNamespaceAsAdmin(DNSNamespace)
 			ApplyResourceFromFile(oc, DNSNamespace, DNSTemplate)
 			compat_otp.AssertAllPodsToBeReady(oc, DNSNamespace)
 
 			g.By("Deploy test server and client pods")
-			servertemplate := filePath.Join(baseDir, "test-nginx-server_template.yaml")
+			servertemplate := filepath.Join(baseDir, "test-nginx-server_template.yaml")
 			testServerTemplate := TestServerTemplate{
 				ServerNS: "test-server-78480",
 				Template: servertemplate,
@@ -1543,7 +1550,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 			o.Expect(err).NotTo(o.HaveOccurred())
 			compat_otp.AssertAllPodsToBeReady(oc, testServerTemplate.ServerNS)
 
-			clientTemplate := filePath.Join(baseDir, "test-nginx-client_template.yaml")
+			clientTemplate := filepath.Join(baseDir, "test-nginx-client_template.yaml")
 			testClientTemplate := TestClientTemplate{
 				ServerNS: testServerTemplate.ServerNS,
 				ClientNS: "test-client-78480",
@@ -1651,7 +1658,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 
 		g.It("Author:aramesha-NonPreRelease-High-79015-Verify PacketTranslation feature [Serial]", func() {
 			g.By("Deploy test server and client pods")
-			servertemplate := filePath.Join(baseDir, "test-nginx-server_template.yaml")
+			servertemplate := filepath.Join(baseDir, "test-nginx-server_template.yaml")
 			testServerTemplate := TestServerTemplate{
 				ServerNS:    "test-server-79015",
 				ServiceType: "ClusterIP",
@@ -1662,7 +1669,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 			o.Expect(err).NotTo(o.HaveOccurred())
 			compat_otp.AssertAllPodsToBeReady(oc, testServerTemplate.ServerNS)
 
-			clientTemplate := filePath.Join(baseDir, "test-nginx-client_template.yaml")
+			clientTemplate := filepath.Join(baseDir, "test-nginx-client_template.yaml")
 			testClientTemplate := TestClientTemplate{
 				ServerNS: testServerTemplate.ServerNS,
 				ClientNS: "test-client-79015",
@@ -1713,7 +1720,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 			}
 
 			g.By("Deploy client-server pods in 2 client NS and one Server NS")
-			serverTemplate := filePath.Join(baseDir, "test-nginx-server_template.yaml")
+			serverTemplate := filepath.Join(baseDir, "test-nginx-server_template.yaml")
 			testServerTemplate := TestServerTemplate{
 				ServerNS: "test-server-77894",
 				Template: serverTemplate,
@@ -1723,7 +1730,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 			o.Expect(err).NotTo(o.HaveOccurred())
 			compat_otp.AssertAllPodsToBeReady(oc, testServerTemplate.ServerNS)
 
-			client1Template := filePath.Join(baseDir, "test-nginx-client_template.yaml")
+			client1Template := filepath.Join(baseDir, "test-nginx-client_template.yaml")
 			testClient1Template := TestClientTemplate{
 				ServerNS: testServerTemplate.ServerNS,
 				ClientNS: "test-client1-77894",
@@ -1772,7 +1779,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 			o.Expect(len(flowRecords)).Should(o.BeNumerically(">", 0), "expected number of flowRecords with 'flowDirection != 1' > 0")
 
 			g.By("deploy BANP policy")
-			banpTemplate := filePath.Join(baseDir, "networking", "baselineadminnetworkPolicy.yaml")
+			banpTemplate := filepath.Join(baseDir, "networking", "baselineadminnetworkPolicy.yaml")
 			banpParameters := []string{"--ignore-unknown-parameters=true", "-p", "SERVER_NS=" + testClient1Template.ServerNS, "CLIENT1_NS=" + testClient1Template.ClientNS, "CLIENT2_NS=" + testClient2Template.ClientNS, "-f", banpTemplate}
 
 			// banp is a cluster scoped resource so passing empty string for NS arg.
@@ -1790,7 +1797,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 			verifyNetworkEvents(flowRecords, "drop", "BaselineAdminNetworkPolicy", "Ingress")
 
 			g.By("deploy NetworkPolicy")
-			netpolTemplate := filePath.Join(baseDir, "networking", "networkPolicy.yaml")
+			netpolTemplate := filepath.Join(baseDir, "networking", "networkPolicy.yaml")
 			netpolName := "allow-ingress"
 			netPolParameters := []string{"--ignore-unknown-parameters=true", "-p", "NAME=" + netpolName, "SERVER_NS=" + testClient1Template.ServerNS, "ALLOW_NS=" + testClient1Template.ClientNS, "-f", netpolTemplate}
 			defer deleteResource(oc, "netpol", netpolName, testClient1Template.ServerNS)
@@ -1814,7 +1821,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 			verifyNetworkEvents(flowRecords, "drop", "NetpolNamespace", "Ingress")
 
 			g.By("deploy ANP policy")
-			anpTemplate := filePath.Join(baseDir, "networking", "adminnetworkPolicy.yaml")
+			anpTemplate := filepath.Join(baseDir, "networking", "adminnetworkPolicy.yaml")
 			anpName := "server-ns"
 			anpParameters := []string{"--ignore-unknown-parameters=true", "-p", "NAM=" + anpName, "SERVER_NS=" + testClient1Template.ServerNS, "ALLOW_NS=" + testClient2Template.ClientNS, "DENY_NS=" + testClient1Template.ClientNS, "-f", anpTemplate}
 			defer deleteResource(oc, "anp", anpName, "")
@@ -1894,8 +1901,8 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 		g.It("Author:aramesha-High-81677-Validate UDN with NetObserv [Serial]", func() {
 			var (
 				namespace        = oc.Namespace()
-				networkingUDNDir = compat_otp.FixturePath("testdata", "networking", "udn")
-				udnPodTemplate   = filePath.Join(networkingUDNDir, "udn_test_pod_template.yaml")
+				networkingUDNDir = filepath.Join(networkingDir, "udn")
+				udnPodTemplate   = filepath.Join(networkingUDNDir, "udn_test_pod_template.yaml")
 				matchLabelKey    = "test.io"
 				matchValue       = "netobserv-cudn-" + getRandomString()
 				cudnName         = "cudn-network-81677"
@@ -2053,15 +2060,15 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 			var (
 				namespace                = oc.Namespace()
 				opNamespace              = "openshift-nmstate"
-				buildPruningBaseDir      = compat_otp.FixturePath("testdata", "networking", "nmstate")
-				testDataDirUDN           = compat_otp.FixturePath("testdata", "networking", "udn")
-				nmstateCRTemplate        = filePath.Join(buildPruningBaseDir, "nmstate-cr-template.yaml")
-				ovnMappingPolicyTemplate = filePath.Join(buildPruningBaseDir, "ovn-mapping-policy-template.yaml")
+				buildPruningBaseDir = filepath.Join(networkingDir, "nmstate")
+				testDataDirUDN = filepath.Join(networkingDir, "udn")
+				nmstateCRTemplate        = filepath.Join(buildPruningBaseDir, "nmstate-cr-template.yaml")
+				ovnMappingPolicyTemplate = filepath.Join(buildPruningBaseDir, "ovn-mapping-policy-template.yaml")
 				matchLabelKey            = "test.io"
 				matchValue               = "cudn-network-" + getRandomString()
 				secondaryCUDNName        = "secondary-localnet-83022"
 				nodeSelectLabel          = "node-role.kubernetes.io/worker"
-				udnStatefulSetTemplate   = filePath.Join(testDataDirUDN, "udn_statefulset_template.yaml")
+				udnStatefulSetTemplate   = filepath.Join(testDataDirUDN, "udn_statefulset_template.yaml")
 				cudnNS                   = []string{"netobserv-cudn1-83022", "netobserv-cudn2-83022"}
 			)
 
@@ -2177,12 +2184,12 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 			g.By("Deploy eBPF manager operator")
 			// eBPF manager operator variables
 			bpfDir := compat_otp.FixturePath("testdata", "netobserv", "bpfman")
-			bpfIDMS := filePath.Join(bpfDir, "image-digest-mirror-set.yaml")
-			bpfCatSrcTemplate := filePath.Join(bpfDir, "catalog-source.yaml")
+			bpfIDMS := filepath.Join(bpfDir, "image-digest-mirror-set.yaml")
+			bpfCatSrcTemplate := filepath.Join(bpfDir, "catalog-source.yaml")
 
 			bpfNS := OperatorNamespace{
 				Name:              "bpfman",
-				NamespaceTemplate: filePath.Join(bpfDir, "namespace.yaml"),
+				NamespaceTemplate: filepath.Join(bpfDir, "namespace.yaml"),
 			}
 			bpfCatSrc := Resource{"catsrc", "bpfman-konflux-fbc", bpfNS.Name}
 			bpfSource := CatalogSourceObjects{"stable", bpfCatSrc.Name, bpfNS.Name}
@@ -2198,8 +2205,8 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 				OperatorName:  "bpfman-operator",
 				Namespace:     "bpfman",
 				PackageName:   "bpfman-operator",
-				Subscription:  filePath.Join(subscriptionDir, "sub-template.yaml"),
-				OperatorGroup: filePath.Join(subscriptionDir, "allnamespace-og.yaml"),
+				Subscription:  filepath.Join(subscriptionDir, "sub-template.yaml"),
+				OperatorGroup: filepath.Join(subscriptionDir, "allnamespace-og.yaml"),
 				CatalogSource: &bpfSource,
 			}
 
@@ -2395,7 +2402,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 			o.Expect(result).To(o.BeTrue(), "Deployment should not scale via consumerReplicas when unmanagedReplicas is true")
 
 			g.By("Verify HPA scales the deployment when unmanagedReplicas is true")
-			hpaYAML := filePath.Join(baseDir, "flowlogs_pipeline_hpa_template.yaml")
+			hpaYAML := filepath.Join(baseDir, "flowlogs_pipeline_hpa_template.yaml")
 			hpaFile := compat_otp.ProcessTemplate(oc, "--ignore-unknown-parameters=true", "-f", hpaYAML, "-p", "NAMESPACE="+namespace)
 			defer oc.AsAdmin().WithoutNamespace().Run("delete").Args("hpa", "flowlogs-pipeline-hpa", "-n", flow.Namespace).Execute()
 			err = oc.WithoutNamespace().Run("create").Args("-f", hpaFile).Execute()
@@ -2448,7 +2455,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 		g.It("Author:kapjain-Medium-86372-Verify Gateway API three-level owner metadata [Serial]", func() {
 			startTime := time.Now()
 			g.By("Deploy flowcollector")
-			gatewayAPITemplate := filePath.Join(baseDir, "gateway-api-template.yaml")
+			gatewayAPITemplate := filepath.Join(baseDir, "gateway-api-template.yaml")
 			flow := Flowcollector{
 				Namespace:     namespace,
 				Template:      flowFixturePath,
@@ -2509,15 +2516,15 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 				oc.CreateSpecifiedNamespaceAsAdmin(kafkaNs)
 				kafkaDir = compat_otp.FixturePath("testdata", "netobserv", "kafka")
 				// Kafka NodePool path
-				kafkaNodePoolPath = filePath.Join(kafkaDir, "kafka-node-pool.yaml")
+				kafkaNodePoolPath = filepath.Join(kafkaDir, "kafka-node-pool.yaml")
 				// Kafka Topic path
-				kafkaTopicPath = filePath.Join(kafkaDir, "kafka-topic.yaml")
+				kafkaTopicPath = filepath.Join(kafkaDir, "kafka-topic.yaml")
 				// Kafka TLS Template path
-				kafkaTLSPath := filePath.Join(kafkaDir, "kafka-tls.yaml")
+				kafkaTLSPath := filepath.Join(kafkaDir, "kafka-tls.yaml")
 				// Kafka metrics config Template path
-				kafkaMetricsPath := filePath.Join(kafkaDir, "kafka-metrics-config.yaml")
+				kafkaMetricsPath := filepath.Join(kafkaDir, "kafka-metrics-config.yaml")
 				// Kafka User path
-				kafkaUserPath := filePath.Join(kafkaDir, "kafka-user.yaml")
+				kafkaUserPath := filepath.Join(kafkaDir, "kafka-user.yaml")
 
 				g.By("Subscribe to AMQ operator")
 				kafkaSource := CatalogSourceObjects{"stable", "redhat-operators", "openshift-marketplace"}
@@ -2525,7 +2532,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 					OperatorName:  "amq-streams-cluster-operator",
 					Namespace:     "openshift-operators",
 					PackageName:   "amq-streams",
-					Subscription:  filePath.Join(subscriptionDir, "sub-template.yaml"),
+					Subscription:  filepath.Join(subscriptionDir, "sub-template.yaml"),
 					CatalogSource: &kafkaSource,
 				}
 
@@ -2728,7 +2735,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 
 				g.By("Deploy Kafka consumer pod")
 				// using amq-streams/kafka-34-rhel8:2.5.2 version. Update if imagePull issues are observed
-				consumerTemplate := filePath.Join(kafkaDir, "topic-consumer-tls.yaml")
+				consumerTemplate := filepath.Join(kafkaDir, "topic-consumer-tls.yaml")
 				consumer := Resource{"job", kafkaTopic2.TopicName + "-consumer", kafkaNs}
 				defer consumer.clear(oc)
 				err = consumer.applyFromTemplate(oc, "-n", consumer.Namespace, "-f", consumerTemplate, "-p", "NAME="+consumer.Name, "NAMESPACE="+consumer.Namespace, "KAFKA_TOPIC="+kafkaTopic2.TopicName, "CLUSTER_NAME="+kafka.Name, "KAFKA_USER="+kafkaUser.UserName)
@@ -2832,7 +2839,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 				VOexisting                 = false
 				virtOperatorNS             = "openshift-cnv"
 				virtualizationDir          = compat_otp.FixturePath("testdata", "netobserv", "virtualization")
-				kubevirtHyperconvergedPath = filePath.Join(virtualizationDir, "kubevirt-hyperconverged.yaml")
+				kubevirtHyperconvergedPath = filepath.Join(virtualizationDir, "kubevirt-hyperconverged.yaml")
 				virtCatsrc                 = Resource{"catsrc", "redhat-operators", "openshift-marketplace"}
 				virtPackageName            = "kubevirt-hyperconverged"
 				virtSource                 = CatalogSourceObjects{"stable", virtCatsrc.Name, virtCatsrc.Namespace}
@@ -2840,8 +2847,8 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 					OperatorName:  "kubevirt-hyperconverged",
 					Namespace:     virtOperatorNS,
 					PackageName:   virtPackageName,
-					Subscription:  filePath.Join(subscriptionDir, "sub-template.yaml"),
-					OperatorGroup: filePath.Join(subscriptionDir, "singlenamespace-og.yaml"),
+					Subscription:  filepath.Join(subscriptionDir, "sub-template.yaml"),
+					OperatorGroup: filepath.Join(subscriptionDir, "singlenamespace-og.yaml"),
 					CatalogSource: &virtSource,
 				}
 			)
@@ -2885,9 +2892,9 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 					testNS = "test-76537"
 					// NAD vars
 					networkName   = "l2-network"
-					layer2NadPath = filePath.Join(virtualizationDir, "layer2-nad.yaml")
+					layer2NadPath = filepath.Join(virtualizationDir, "layer2-nad.yaml")
 					// VM vars
-					testVMStaticIPTemplatePath = filePath.Join(virtualizationDir, "test-vm-static-IP_template.yaml")
+					testVMStaticIPTemplatePath = filepath.Join(virtualizationDir, "test-vm-static-IP_template.yaml")
 				)
 
 				g.By("Deploy Network Attachment Definition in test-76537 namespace")
@@ -3018,7 +3025,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 					udnNS   = "netobserv-udn-85887"
 					udnName = "udn-network-85887"
 					// VM vars
-					testVMUDNTemplatePath = filePath.Join(virtualizationDir, "test-vm-UDN_template.yaml")
+					testVMUDNTemplatePath = filepath.Join(virtualizationDir, "test-vm-UDN_template.yaml")
 				)
 
 				g.By("Deploy UDN in UDN ns")
@@ -3129,13 +3136,13 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 					// NMstate operator vars
 					opNamespace       = "openshift-nmstate"
 					nmStateDir        = compat_otp.FixturePath("testdata", "networking", "nmstate")
-					nmstateCRTemplate = filePath.Join(nmStateDir, "nmstate-cr-template.yaml")
+					nmstateCRTemplate = filepath.Join(nmStateDir, "nmstate-cr-template.yaml")
 					nmstateCR         = nmstateCRResource{
 						name:     "nmstate",
 						template: nmstateCRTemplate,
 					}
 					nodeSelectLabel          = "node-role.kubernetes.io/worker"
-					ovnMappingPolicyTemplate = filePath.Join(nmStateDir, "ovn-mapping-policy-template.yaml")
+					ovnMappingPolicyTemplate = filepath.Join(nmStateDir, "ovn-mapping-policy-template.yaml")
 					ovnMappingPolicy         = ovnMappingPolicyResource{
 						name:       "bridge-mapping-85935",
 						nodelabel:  nodeSelectLabel,
@@ -3149,7 +3156,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 					matchValue                 = "cudn-network-" + getRandomString()
 					secondaryCUDNName          = "secondary-localnet-85935"
 					cudnNS                     = []string{"netobserv-cudn1-85935", "netobserv-cudn2-85935"}
-					testVMLocalnetTemplatePath = filePath.Join(virtualizationDir, "test-vm-localnet_template.yaml")
+					testVMLocalnetTemplatePath = filepath.Join(virtualizationDir, "test-vm-localnet_template.yaml")
 				)
 
 				g.By("Check the platform and network plugin type if it is suitable for running the test")

@@ -139,7 +139,7 @@ func userCleanup(oc *exutil.CLI, users []*User, usersHTpassFile string, htPassSe
 }
 
 func addUserAsReader(oc *exutil.CLI, username string) {
-	baseDir := compat_otp.FixturePath("testdata", "netobserv")
+	baseDir, _ := filePath.Abs("./testdata")
 	readerCRBPath := filePath.Join(baseDir, "netobserv-loki-reader-multitenant-crb.yaml")
 	parameters := []string{"-f", readerCRBPath, "-p", "USERNAME=" + username}
 	compat_otp.CreateClusterResourceFromTemplate(oc, parameters...)
@@ -151,14 +151,14 @@ func removeUserAsReader(oc *exutil.CLI, username string) {
 }
 
 func addTemplatePermissions(oc *exutil.CLI, username string) {
-	baseDir := compat_otp.FixturePath("testdata", "netobserv")
+	baseDir, _ := filePath.Abs("./testdata")
 	readerCRBPath := filePath.Join(baseDir, "testuser-template-crb.yaml")
 	parameters := []string{"-f", readerCRBPath, "-p", "USERNAME=" + username}
 	compat_otp.CreateClusterResourceFromTemplate(oc, parameters...)
 }
 
 func removeTemplatePermissions(oc *exutil.CLI, username string) {
-	baseDir := compat_otp.FixturePath("testdata", "netobserv")
+	baseDir, _ := filePath.Abs("./testdata")
 	readerCRBPath := filePath.Join(baseDir, "testuser-template-crb.yaml")
 	parameters := []string{"-f", readerCRBPath, "-p", "USERNAME=" + username}
 	configFile := compat_otp.ProcessTemplate(oc, parameters...)

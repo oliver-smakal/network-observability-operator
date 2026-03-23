@@ -137,7 +137,8 @@ func (cudncrd *cudnCRDResource) createLayer3LocalnetCUDNCRD(oc *exutil.CLI) {
 func applyCUDNtoMatchLabelNS(oc *exutil.CLI, matchLabelKey, matchValue, crdName, ipv4cidr, ipv6cidr, cidr, topology string) (cudnCRDResource, error) {
 
 	var (
-		networkingUDNDir     = compat_otp.FixturePath("testdata", "networking", "udn")
+		baseDir, _ = filePath.Abs("./testdata")
+		networkingUDNDir = filePath.Join(baseDir,"networking", "udn")
 		cudnCRDSingleStack   = filePath.Join(networkingUDNDir, "cudn_crd_singlestack_template.yaml")
 		cudnCRDdualStack     = filePath.Join(networkingUDNDir, "cudn_crd_dualstack_template.yaml")
 		cudnCRDL2dualStack   = filePath.Join(networkingUDNDir, "cudn_crd_layer2_dualstack_template.yaml")
@@ -196,7 +197,8 @@ func applyCUDNtoMatchLabelNS(oc *exutil.CLI, matchLabelKey, matchValue, crdName,
 
 func applyLocalnetCUDNtoMatchLabelNS(oc *exutil.CLI, matchLabelKey, matchValue, crdName, physicalNetworkName, subnet, excludeSubnet string, vlan bool) (cudnCRDResource, error) {
 	var (
-		networkingUDNDir                   = compat_otp.FixturePath("testdata", "networking", "udn")
+		baseDir, _ = filePath.Abs("./testdata")
+		networkingUDNDir = filePath.Join(baseDir,"networking", "udn")
 		cudnCRDLocalnetSingleStack         = filePath.Join(networkingUDNDir, "cudn_crd_localnet_singlestack_template.yaml")
 		cudnCRDLocalnetSingleStackWithVlan = filePath.Join(networkingUDNDir, "cudn_crd_localnet_singlestack_with_vlan_template.yaml")
 	)
@@ -276,7 +278,8 @@ func (udncrd *udnCRDResource) createLayer2SingleStackUDNCRD(oc *exutil.CLI) {
 func createGeneralUDNCRD(oc *exutil.CLI, namespace, crdName, ipv4cidr, ipv6cidr, cidr, layer string) {
 	// This is a function for common CRD creation without special requirement for parameters which is can be used for common cases and to reduce code lines in case level.
 	var (
-		networkingUDNDir        = compat_otp.FixturePath("testdata", "networking", "udn")
+		baseDir, _ = filePath.Abs("./testdata")
+		networkingUDNDir = filePath.Join(baseDir,"networking", "udn")
 		udnCRDdualStack         = filePath.Join(networkingUDNDir, "udn_crd_dualstack2_template.yaml")
 		udnCRDSingleStack       = filePath.Join(networkingUDNDir, "udn_crd_singlestack_template.yaml")
 		udnCRDLayer2dualStack   = filePath.Join(networkingUDNDir, "udn_crd_layer2_dualstack_template.yaml")

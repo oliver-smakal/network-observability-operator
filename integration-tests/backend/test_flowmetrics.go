@@ -22,10 +22,11 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 		NOSource = CatalogSourceObjects{"stable", NOcatSrc.Name, NOcatSrc.Namespace}
 
 		// Template directories
-		baseDir         = compat_otp.FixturePath("testdata", "netobserv")
-		subscriptionDir = compat_otp.FixturePath("testdata", "netobserv", "subscription")
+		baseDir, _ = filePath.Abs("./testdata")
+		subscriptionDir = filePath.Join(baseDir,"subscription")
 		flowFixturePath = filePath.Join(baseDir, "flowcollector_v1beta2_template.yaml")
-		flowmetricsPath = filePath.Join(baseDir, "flowmetrics_v1alpha1_template.yaml")
+                flowmetricsPath = filePath.Join(baseDir, "flowmetrics_v1alpha1_template.yaml")
+
 
 		// Operator namespace object
 		OperatorNS = OperatorNamespace{

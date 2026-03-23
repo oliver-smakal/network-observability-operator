@@ -129,7 +129,8 @@ func (so *SubscriptionObjects) SubscribeOperator(oc *exutil.CLI) {
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			e2e.Logf("The project %s is not found, create it now...", so.Namespace)
-			namespaceTemplate := compat_otp.FixturePath("testdata", "logging", "subscription", "namespace.yaml")
+			baseDir, _ := filePath.Abs("./testdata")
+			namespaceTemplate  := filePath.Join(baseDir, "logging", "subscription-namespace.yaml")
 			namespaceFile, err := processTemplate(oc, "-f", namespaceTemplate, "-p", "NAMESPACE_NAME="+so.Namespace)
 			o.Expect(err).NotTo(o.HaveOccurred())
 			err = wait.PollUntilContextTimeout(context.Background(), 5*time.Second, 60*time.Second, false, func(context.Context) (done bool, err error) {
@@ -261,11 +262,6 @@ func (ns *OperatorNamespace) DeployOperatorNamespace(oc *exutil.CLI) {
 	e2e.Logf("Creating %s operator namespace", ns.Name)
 	nsParameters := []string{"--ignore-unknown-parameters=true", "-f", ns.NamespaceTemplate, "-p", "NAMESPACE_NAME=" + ns.Name}
 	compat_otp.ApplyClusterResourceFromTemplate(oc, nsParameters...)
-}
-
-func generateTemplateAbsolutePath(fileName string) string {
-	testDataDir := compat_otp.FixturePath("testdata", "networking", "nmstate")
-	return filePath.Join(testDataDir, fileName)
 }
 
 func operatorInstall(oc *exutil.CLI, sub subscriptionResource, ns OperatorNamespace, og operatorGroupResource) (status bool) {
@@ -448,11 +444,16 @@ func installNMstateOperator(oc *exutil.CLI) {
 	)
 
 	e2e.Logf("Check catalogsource and install nmstate operator.")
-	namespaceTemplate := generateTemplateAbsolutePath("namespace-template.yaml")
-	operatorGroupTemplate := generateTemplateAbsolutePath("operatorgroup-template.yaml")
-	subscriptionTemplate := generateTemplateAbsolutePath("subscription-template.yaml")
-	catalogSourceTemplate := generateTemplateAbsolutePath("catalogsource-template.yaml")
-	imageDigestMirrorSetFile := generateTemplateAbsolutePath("image-digest-mirrorset.yaml")
+
+	baseDir, _ := filePath.Abs("./testdata")
+	baseDir = filePath.Join(baseDir,"testdata", "networking", "nmstate")
+
+	namespaceTemplate := filePath.Join(baseDir,"namespace-template.yaml")
+	operatorGroupTemplate := filePath.Join(baseDir,"operatorgroup-template.yaml")
+	subscriptionTemplate := filePath.Join(baseDir,"subscription-template.yaml")
+	catalogSourceTemplate := filePath.Join(baseDir,"catalogsource-template.yaml")
+	imageDigestMirrorSetFile := filePath.Join(baseDir,"image-digest-mirrorset.yaml")
+
 	sub := subscriptionResource{
 		name:             "nmstate-operator-sub",
 		namespace:        opNamespace,

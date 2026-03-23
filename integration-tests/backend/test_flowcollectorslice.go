@@ -25,10 +25,11 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 		NOSource = CatalogSourceObjects{"stable", NOcatSrc.Name, NOcatSrc.Namespace}
 
 		// Template directories
-		baseDir              = compat_otp.FixturePath("testdata", "netobserv")
-		subscriptionDir      = compat_otp.FixturePath("testdata", "netobserv", "subscription")
-		flowFixturePath      = filePath.Join(baseDir, "flowcollector_v1beta2_template.yaml")
+		baseDir, _ = filePath.Abs("./testdata")
+		subscriptionDir = filePath.Join(baseDir,"subscription")
+		flowFixturePath = filePath.Join(baseDir, "flowcollector_v1beta2_template.yaml")
 		flowSliceFixturePath = filePath.Join(baseDir, "flowcollectorSlice_v1alpha1_template.yaml")
+
 
 		// Operator namespace object
 		OperatorNS = OperatorNamespace{
@@ -52,7 +53,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 		namespace       string
 
 		// Loki Operator variables
-		lokiDir         = compat_otp.FixturePath("testdata", "netobserv", "loki")
+		lokiDir   = filePath.Join(baseDir,"loki")
 		lokiPackageName = "loki-operator"
 		lokiSource      CatalogSourceObjects
 		ls              *lokiStack
