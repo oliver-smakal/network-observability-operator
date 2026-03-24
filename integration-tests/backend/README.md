@@ -15,26 +15,10 @@ or to make sure the version of cli and packages is matching
 go run github.com/onsi/ginkgo/v2/ginkgo
 ```
 
-### Run a specific testcase
-```bash
-todo
-ginkgo --label-filter=""
-```
+### Run tests with custom focus with verbose output
 
-### Run tests with verbose output
 ```bash
-ginkgo -v
-```
-
-### Run tests with custom focus
-```bash
-todo
-ginkgo --focus=""
-```
-
-### Run tests in parallel
-```bash
-ginkgo -p
+go run github.com/onsi/ginkgo/v2/ginkgo --focus="87145"
 ```
 
 ## Writing New Tests
