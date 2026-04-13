@@ -1,4 +1,4 @@
-package netobserv
+package e2etests
 
 type consoleplugin struct {
 	Image string `json:"image"`
