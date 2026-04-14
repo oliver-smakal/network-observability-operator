@@ -103,8 +103,8 @@ var _ = ReportBeforeSuite(func(report Report) {
 })
 
 var _ = ReportAfterEach(func(report SpecReport) {
-	// Only report on specs that actually ran (not skipped)
-	if report.State == types.SpecStateSkipped {
+	// Only report on specs that actually ran (not skipped on via focused filter)
+	if report.State == types.SpecStateSkipped && report.Failure.Message == "" && report.RunTime <= 0{
 		return
 	}
 
@@ -123,6 +123,12 @@ var _ = ReportAfterEach(func(report SpecReport) {
 	switch report.State {
 	case types.SpecStatePassed:
 		fmt.Printf("• PASSED [%.3f seconds]\n", report.RunTime.Seconds())
+	case types.SpecStateSkipped:
+		fmt.Printf("• SKIPPED [%.3f seconds]\n", report.RunTime.Seconds())
+		if report.Failure.Message != "" {
+			fmt.Printf("\n%s\n", report.Failure.Message)
+			fmt.Printf("%s\n", report.Failure.Location.String())
+		}
 	case types.SpecStateFailed, types.SpecStatePanicked, types.SpecStateInterrupted:
 		fmt.Printf("• FAILED [%.3f seconds]\n", report.RunTime.Seconds())
 		if report.Failure.Message != "" {
