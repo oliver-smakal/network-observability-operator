@@ -54,11 +54,6 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 		namespace      string
 	)
 
-	fmt.Println(baseDir)
-	fmt.Println(networkingDir)
-	fmt.Println(subscriptionDir)
-	fmt.Println(flowFixturePath)
-
 	g.BeforeEach(func() {
 		if strings.Contains(os.Getenv("E2E_RUN_TAGS"), "disconnected") {
 			g.Skip("Skipping tests for disconnected profiles")

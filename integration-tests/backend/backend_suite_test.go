@@ -93,9 +93,6 @@ func TestBackend(t *testing.T) {
 // Custom reporting hooks
 
 var _ = ReportBeforeSuite(func(report Report) {
-	fmt.Println("\n--------------------REPORT_BEFORE_SUITE_START--------------------")
-	defer fmt.Println("\n--------------------REPORT_BEFORE_SUITE_END--------------------")
-
 	fmt.Printf("Running Suite: %s - %s\n", report.SuiteDescription, report.SuitePath)
 	fmt.Printf("==========================================================================================================\n")
 	fmt.Printf("Random Seed: %d\n\n", report.SuiteConfig.RandomSeed)
@@ -111,9 +108,6 @@ var _ = ReportAfterEach(func(report SpecReport) {
 	if report.LeafNodeType != types.NodeTypeIt {
 		return
 	}
-
-	fmt.Println("--------------------REPORT_AFTER_EACH_START--------------------")
-	defer fmt.Println("--------------------REPORT_AFTER_EACH_END--------------------")
 
 	// Print spec progress
 	fmt.Printf("%s\n", report.FullText())
@@ -139,9 +133,6 @@ var _ = ReportAfterEach(func(report SpecReport) {
 })
 
 var _ = ReportAfterSuite("NetObserv Summary", func(report Report) {
-	fmt.Println("\n--------------------REPORT_AFTER_SUITE_START--------------------")
-	defer fmt.Println("\n--------------------REPORT_AFTER_SUITE_END--------------------")
-
 	passed := 0
 	failed := 0
 	skipped := 0

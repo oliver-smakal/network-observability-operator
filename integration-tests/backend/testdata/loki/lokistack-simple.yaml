@@ -24,6 +24,9 @@ objects:
         enableIPv6: "${{EnableIPV6}}"
     tenants:
       mode: ${Tenant}
+    template:
+      ingester:
+        replicas: 2
 parameters:
 - name: Name
   value: "lokistack"
