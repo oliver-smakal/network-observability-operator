@@ -1,8 +1,8 @@
 # NetObserv Operator
 
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/netobserv/network-observability-operator)
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/netobserv/netobserv-operator)
 [![Artifact HUB](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/NetObserv)](https://artifacthub.io/packages/helm/netobserv/netobserv-operator)
-[![Go Report Card](https://goreportcard.com/badge/github.com/netobserv/network-observability-operator)](https://goreportcard.com/report/github.com/netobserv/network-observability-operator)
+[![Go Report Card](https://goreportcard.com/badge/github.com/netobserv/netobserv-operator)](https://goreportcard.com/report/github.com/netobserv/netobserv-operator)
 
 NetObserv Operator is a Kubernetes operator for network observability. It deploys a monitoring pipeline that consists in:
 - An eBPF agent, that generates network flows from captured packets.
@@ -30,16 +30,19 @@ The following architectures are supported: _amd64_, _arm64_, _ppc64le_ and _s390
 
 NetObserv has a couple of dependencies that must be installed on your cluster:
 
-- Cert-manager
+- Cert-manager / trust-manager
 - Prometheus
 - Loki
 
-Cert-manager has to be installed separately. For example, using helm:
+Cert-manager and Trust-manager have to be installed separately. For example, using helm:
 
 ```bash
 helm repo add cert-manager https://charts.jetstack.io
-helm install my-cert-manager cert-manager/cert-manager --set crds.enabled=true
+helm install cert-manager -n cert-manager --create-namespace cert-manager/cert-manager --set crds.enabled=true
+helm upgrade trust-manager oci://quay.io/jetstack/charts/trust-manager --install --namespace cert-manager --wait
 ```
+
+If you don't want to use Cert-manager and Trust-manager, you need to provide certificates by other means: refer to [TLS.md](./docs/TLS.md).
 
 Prometheus and Loki can be installed separately, or as dependencies of NetObserv (see below).
 
@@ -54,13 +57,13 @@ Loki is not mandatory but improves the overall experience with NetObserv.
 helm repo add netobserv https://netobserv.io/static/helm/ --force-update
 
 # Standalone install, including dependencies:
-helm install my-netobserv -n netobserv --create-namespace --set install.loki=true --set install.prom-stack=true netobserv/netobserv-operator
+helm install netobserv -n netobserv --create-namespace --set install.loki=true --set install.prom-stack=true netobserv/netobserv-operator
 
 # OR minimal install (Prometheus/Loki must be installed separately)
-helm install my-netobserv -n netobserv --create-namespace netobserv/netobserv-operator
+helm install netobserv -n netobserv --create-namespace netobserv/netobserv-operator
 ```
 
-You can now create a `FlowCollector` resource. Refer to the [Configuration section](#configuration) of this document. A short `FlowCollector` should work, using most default values, plus with the standalone console enabled:
+To start generating network flows, you must then create a `FlowCollector` resource ([full API reference](https://github.com/netobserv/netobserv-operator/blob/main/docs/FlowCollector.md#flowsnetobserviov1beta2)) named `cluster`. A short `FlowCollector` should work:
 
 ```bash
 cat <<EOF | kubectl apply -f -
@@ -72,34 +75,31 @@ spec:
   namespace: netobserv
   networkPolicy:
     enable: false
-  consolePlugin:
-    standalone: true
   processor:
-    advanced:
-      env:
-        SERVER_NOTLS: "true"
+    service:
+      tlsType: Auto-mTLS
   loki:
     mode: Monolithic
     monolithic:
-      url: 'http://my-netobserv-loki.netobserv.svc.cluster.local.:3100/'
+      url: 'http://netobserv-loki.netobserv.svc.cluster.local.:3100/'
   prometheus:
     querier:
       mode: Manual
       manual:
-        url: http://my-netobserv-kube-promethe-prometheus.netobserv.svc.cluster.local.:9090/
+        url: http://netobserv-prom-stack-prometheus.netobserv.svc.cluster.local.:9090/
         alertManager:
-          url: http://my-netobserv-kube-promethe-alertmanager.netobserv.svc.cluster.local.:9093/
+          url: http://netobserv-prom-stack-alertmanager.netobserv.svc.cluster.local.:9093/
 EOF
 ```
 
 A few remarks:
-- You can change the Prometheus and Loki URLs depending on your installation. This example works if you use the "standalone" installation described above, with `install.loki=true` and `install.prom-stack=true`. Check more configuration options for [Prometheus](https://github.com/netobserv/network-observability-operator/blob/main/docs/FlowCollector.md#flowcollectorspecprometheus-1) and [Loki](https://github.com/netobserv/network-observability-operator/blob/main/docs/FlowCollector.md#flowcollectorspecloki-1).
-- You can enable networkPolicy, which makes the operator lock down the namespaces that it manages; however, this is highly dependent on your cluster topology, and may cause malfunctions, such as preventing NetObserv pods from communicating with the Kube API server.
-- The processor env `SERVER_NOTLS` means that the communication between eBPF agents and Flowlogs-pipeline won't be encrypted. To enable TLS, you need to supply the TLS certificates to Flowlogs-pipeline (a Secret named `flowlogs-pipeline-cert`), and the CA to the eBPF agents (a ConfigMap named `flowlogs-pipeline-ca` in the privileged namespace). [Check this issue](https://github.com/netobserv/network-observability-operator/issues/2360) if you want to help making it simpler.
+- You can change the Prometheus and Loki URLs depending on your installation. This example works if you use the "standalone" installation described above, with `install.loki=true` and `install.prom-stack=true`. Check more configuration options for [Prometheus](https://github.com/netobserv/netobserv-operator/blob/main/docs/FlowCollector.md#flowcollectorspecprometheus-1) and [Loki](https://github.com/netobserv/netobserv-operator/blob/main/docs/FlowCollector.md#flowcollectorspecloki-1).
+- Depending on the Kubernetes distribution and CNI, NetObserv may come secured by default with a built-in network policy. You can force installing it or not by setting `spec.networkPolicy.enable` in `FlowCollector`. If the built-in policy does not work as intended, it is recommended to turn it off and create your own instead. NetObserv runs some highly privileged workloads, thus it is important to keep it as much isolated as possible. See [NetworkPolicy.md](./docs/NetworkPolicy.md) for more details on how to create a policy.
 
 To view the test console, you can port-forward 9001:
 
 ```bash
+kubectl wait -n netobserv --timeout=60s --for condition=Available=True deployment netobserv-plugin
 kubectl port-forward svc/netobserv-plugin 9001:9001 -n netobserv
 ```
 
@@ -110,7 +110,7 @@ Then open http://localhost:9001/ in your browser.
 A couple of `make` targets are provided in this repository to allow installing without OLM:
 
 ```bash
-git clone https://github.com/netobserv/network-observability-operator.git && cd network-observability-operator
+git clone https://github.com/netobserv/netobserv-operator.git && cd network-observability-operator
 USER=netobserv make deploy deploy-loki deploy-grafana
 ```
 
@@ -256,9 +256,7 @@ More information about multi-tenancy can be found on [this page](https://github.
 
 For a production deployment, it is highly recommended to lock down the `netobserv` namespace (or wherever NetObserv is installed) using network policies.
 
-You can set `spec.networkPolicy.enable` to `true` to make NetObserv install automatically a network policy. The policy may need to be fined-tuned for your environment (e.g. for access to kube apiserver, or Prometheus), by adding authorized namespaces.
-
-A simple example of network policy is [provided here](https://github.com/netobserv/documents/blob/main/examples/lockdown-netobserv.yaml).
+You can set `spec.networkPolicy.enable` to `true` to make NetObserv install automatically a network policy. The policy may need to be fined-tuned for your environment (e.g. for access to kube apiserver, or Prometheus), by adding authorized namespaces. More information [here](./docs/NetworkPolicy.md).
 
 #### Communications
 

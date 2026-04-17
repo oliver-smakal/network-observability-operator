@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	flowslatest "github.com/netobserv/network-observability-operator/api/flowcollector/v1beta2"
-	"github.com/netobserv/network-observability-operator/internal/controller/reconcilers"
-	"github.com/netobserv/network-observability-operator/internal/pkg/cluster"
-	"github.com/netobserv/network-observability-operator/internal/pkg/helper"
-	"github.com/netobserv/network-observability-operator/internal/pkg/manager/status"
+	flowslatest "github.com/netobserv/netobserv-operator/api/flowcollector/v1beta2"
+	"github.com/netobserv/netobserv-operator/internal/controller/reconcilers"
+	"github.com/netobserv/netobserv-operator/internal/pkg/cluster"
+	"github.com/netobserv/netobserv-operator/internal/pkg/helper"
+	"github.com/netobserv/netobserv-operator/internal/pkg/manager/status"
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -247,7 +247,7 @@ func TestNetworkEventsOVNMount(t *testing.T) {
 	assert.Equal(t, "/var/run/openvswitch", ds.Spec.Template.Spec.Volumes[2].HostPath.Path)
 
 	// OpenShift OVN
-	info.ClusterInfo.Mock("4.20.0", cluster.OVNKubernetes)
+	info.ClusterInfo.Mock("4.20.0", flowslatest.OVNKubernetes)
 	ds, err = agent.desired(context.Background(), &fc)
 	assert.NoError(t, err)
 	assert.NotNil(t, ds)

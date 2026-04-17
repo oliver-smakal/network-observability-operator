@@ -7,14 +7,14 @@ import (
 	"testing"
 
 	"github.com/netobserv/flowlogs-pipeline/pkg/config"
-	flowslatest "github.com/netobserv/network-observability-operator/api/flowcollector/v1beta2"
-	metricslatest "github.com/netobserv/network-observability-operator/api/flowmetrics/v1alpha1"
-	"github.com/netobserv/network-observability-operator/internal/controller/constants"
-	"github.com/netobserv/network-observability-operator/internal/controller/reconcilers"
-	"github.com/netobserv/network-observability-operator/internal/pkg/cluster"
-	"github.com/netobserv/network-observability-operator/internal/pkg/helper"
-	"github.com/netobserv/network-observability-operator/internal/pkg/manager/status"
-	"github.com/netobserv/network-observability-operator/internal/pkg/metrics/alerts"
+	flowslatest "github.com/netobserv/netobserv-operator/api/flowcollector/v1beta2"
+	metricslatest "github.com/netobserv/netobserv-operator/api/flowmetrics/v1alpha1"
+	"github.com/netobserv/netobserv-operator/internal/controller/constants"
+	"github.com/netobserv/netobserv-operator/internal/controller/reconcilers"
+	"github.com/netobserv/netobserv-operator/internal/pkg/cluster"
+	"github.com/netobserv/netobserv-operator/internal/pkg/helper"
+	"github.com/netobserv/netobserv-operator/internal/pkg/manager/status"
+	"github.com/netobserv/netobserv-operator/internal/pkg/metrics/alerts"
 	v1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 
 	"github.com/stretchr/testify/assert"
@@ -54,7 +54,7 @@ func getConfig() flowslatest.FlowCollectorSpec {
 				Server: flowslatest.MetricsServerConfig{
 					Port: ptr.To(int32(9090)),
 					TLS: flowslatest.ServerTLS{
-						Type: flowslatest.ServerTLSDisabled,
+						Type: flowslatest.TLSDisabled,
 					},
 				},
 			},

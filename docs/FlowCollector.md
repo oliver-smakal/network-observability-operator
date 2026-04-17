@@ -45,7 +45,7 @@ Resource Types:
       <td>true</td>
       </tr>
       <tr>
-      <td><b><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.20/#objectmeta-v1-meta">metadata</a></b></td>
+      <td><b><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#objectmeta-v1-meta">metadata</a></b></td>
       <td>object</td>
       <td>Refer to the Kubernetes API documentation for the fields of the `metadata` field.</td>
       <td>true</td>
@@ -123,6 +123,13 @@ Kafka can provide better scalability, resiliency, and high availability (for mor
         </td>
         <td>false</td>
       </tr><tr>
+        <td><b><a href="#flowcollectorspecexecution">execution</a></b></td>
+        <td>object</td>
+        <td>
+          `execution` defines configuration related to the execution of the flow collection process.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
         <td><b><a href="#flowcollectorspecexportersindex">exporters</a></b></td>
         <td>[]object</td>
         <td>
@@ -149,6 +156,7 @@ Kafka can provide better scalability, resiliency, and high availability (for mor
         <td>
           Namespace where NetObserv pods are deployed.<br/>
           <br/>
+            <i>Validations</i>:<li>self == oldSelf: Namespace is immutable. If you need to change it, delete and recreate the resource.</li>
             <i>Default</i>: netobserv<br/>
         </td>
         <td>false</td>
@@ -305,7 +313,10 @@ IMPORTANT: This feature is available as a Technology Preview.<br>
 - `UDNMapping`: Enable interfaces mapping to User Defined Networks (UDN). <br>
 This feature requires mounting the kernel debug filesystem, so the eBPF agent pods must run as privileged via `spec.agent.ebpf.privileged`.
 It requires using the OVN-Kubernetes network plugin with the Observability feature. <br>
-- `IPSec`, to track flows between nodes with IPsec encryption. <br><br/>
+- `IPSec`, to track flows between nodes with IPsec encryption. <br>
+- `TLSTracking`, to track TLS usage. <br><br/>
+          <br/>
+            <i>Enum</i>: PacketDrop, DNSTracking, FlowRTT, NetworkEvents, PacketTranslation, EbpfManager, UDNMapping, IPSec, TLSTracking<br/>
         </td>
         <td>false</td>
       </tr><tr>
@@ -2503,6 +2514,8 @@ In addition to the standard flags (RFC-9293), you can also filter by one of the 
           `disableAlerts` is a list of alerts that should be disabled.
 Possible values are:<br>
 `NetObservDroppedFlows`, which is triggered when the eBPF agent is missing packets or flows, such as when the BPF hashmap is busy or full, or the capacity limiter is being triggered.<br><br/>
+          <br/>
+            <i>Enum</i>: NetObservDroppedFlows<br/>
         </td>
         <td>false</td>
       </tr><tr>
@@ -6008,6 +6021,39 @@ only the result of this request.<br/>
 </table>
 
 
+### FlowCollector.spec.execution
+<sup><sup>[↩ Parent](#flowcollectorspec)</sup></sup>
+
+
+
+`execution` defines configuration related to the execution of the flow collection process.
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+        <td><b>mode</b></td>
+        <td>enum</td>
+        <td>
+          `mode` is the flow collection process execution desired mode: `Running` or `OnHold`.
+When `OnHold`, the operator deletes all managed services and workloads, with the exception
+of the static console plugin, and the operator itself.
+It allows to use minimal cluster resources without losing configuration.<br/>
+          <br/>
+            <i>Enum</i>: , Running, OnHold<br/>
+            <i>Default</i>: Running<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>
+
+
 ### FlowCollector.spec.exporters[index]
 <sup><sup>[↩ Parent](#flowcollectorspec)</sup></sup>
 
@@ -6151,6 +6197,17 @@ Kafka configuration, such as the address and topic, to send enriched flows to.
         </td>
         <td>true</td>
       </tr><tr>
+        <td><b>compression</b></td>
+        <td>enum</td>
+        <td>
+          Compression codec to use when producing messages to Kafka.
+Accepted values are: `none`, `gzip`, `snappy`, `lz4` (default), `zstd`.<br/>
+          <br/>
+            <i>Enum</i>: none, gzip, snappy, lz4, zstd<br/>
+            <i>Default</i>: lz4<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
         <td><b><a href="#flowcollectorspecexportersindexkafkasasl">sasl</a></b></td>
         <td>object</td>
         <td>
@@ -6161,7 +6218,8 @@ Kafka configuration, such as the address and topic, to send enriched flows to.
         <td><b><a href="#flowcollectorspecexportersindexkafkatls">tls</a></b></td>
         <td>object</td>
         <td>
-          TLS client configuration. When using TLS, verify that the address matches the Kafka port used for TLS, generally 9093.<br/>
+          TLS and mTLS client configuration. When using TLS, verify that the address matches the Kafka port used for TLS, generally 9093.
+We recommend the use of mTLS for higher security standards.<br/>
         </td>
         <td>false</td>
       </tr></tbody>
@@ -6323,7 +6381,8 @@ If the namespace is different, the config map or the secret is copied so that it
 
 
 
-TLS client configuration. When using TLS, verify that the address matches the Kafka port used for TLS, generally 9093.
+TLS and mTLS client configuration. When using TLS, verify that the address matches the Kafka port used for TLS, generally 9093.
+We recommend the use of mTLS for higher security standards.
 
 <table>
     <thead>
@@ -6891,6 +6950,17 @@ Kafka configuration, allowing to use Kafka as a broker as part of the flow colle
         </td>
         <td>true</td>
       </tr><tr>
+        <td><b>compression</b></td>
+        <td>enum</td>
+        <td>
+          Compression codec to use when producing messages to Kafka.
+Accepted values are: `none`, `gzip`, `snappy`, `lz4` (default), `zstd`.<br/>
+          <br/>
+            <i>Enum</i>: none, gzip, snappy, lz4, zstd<br/>
+            <i>Default</i>: lz4<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
         <td><b><a href="#flowcollectorspeckafkasasl">sasl</a></b></td>
         <td>object</td>
         <td>
@@ -6901,7 +6971,8 @@ Kafka configuration, allowing to use Kafka as a broker as part of the flow colle
         <td><b><a href="#flowcollectorspeckafkatls">tls</a></b></td>
         <td>object</td>
         <td>
-          TLS client configuration. When using TLS, verify that the address matches the Kafka port used for TLS, generally 9093.<br/>
+          TLS and mTLS client configuration. When using TLS, verify that the address matches the Kafka port used for TLS, generally 9093.
+We recommend the use of mTLS for higher security standards.<br/>
         </td>
         <td>false</td>
       </tr></tbody>
@@ -7063,7 +7134,8 @@ If the namespace is different, the config map or the secret is copied so that it
 
 
 
-TLS client configuration. When using TLS, verify that the address matches the Kafka port used for TLS, generally 9093.
+TLS and mTLS client configuration. When using TLS, verify that the address matches the Kafka port used for TLS, generally 9093.
+We recommend the use of mTLS for higher security standards.
 
 <table>
     <thead>
@@ -8394,8 +8466,10 @@ configuration, you can disable it and install your own instead.<br/>
         <td>
           Deploys network policies on the namespaces used by NetObserv (main and privileged).
 These network policies better isolate the NetObserv components to prevent undesired connections from and to them.
-This option is enabled by default when using with OVNKubernetes, and disabled otherwise (it has not been tested with other CNIs).
-When disabled, you can manually create the network policies for the NetObserv components.<br/>
+Because it cannot be tested with all CNIs, this option is only enabled by default when NetObserv runs in a known
+supported environment, and it is disabled by default otherwise.
+When disabled, it is highly recommended to create network policies manually, to prevent undesired accesses.
+More information: https://github.com/netobserv/netobserv-operator/blob/main/docs/NetworkPolicy.md.<br/>
         </td>
         <td>false</td>
       </tr></tbody>
@@ -8573,6 +8647,13 @@ For more information, see https://kubernetes.io/docs/concepts/configuration/mana
         </td>
         <td>false</td>
       </tr><tr>
+        <td><b><a href="#flowcollectorspecprocessorservice">service</a></b></td>
+        <td>object</td>
+        <td>
+          Service configuration, only used when `spec.deploymentModel` is `Service`.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
         <td><b><a href="#flowcollectorspecprocessorslicesconfig">slicesConfig</a></b></td>
         <td>object</td>
         <td>
@@ -8722,7 +8803,8 @@ By convention, some values are forbidden. It must be greater than 1024 and diffe
         <td>
           Defines secondary networks to be checked for resources identification.
 To guarantee a correct identification, indexed values must form an unique identifier across the cluster.
-If the same index is used by several resources, those resources might be incorrectly labeled.<br/>
+If the same index is used by several resources, those resources might be incorrectly labeled.
+If not provided and `spec.agent.ebpf.privileged` is `true`, secondary networks are detected automatically.<br/>
         </td>
         <td>false</td>
       </tr></tbody>
@@ -10492,15 +10574,17 @@ If the operator is Exists, the value should be empty, otherwise just a regular s
           `index` is a list of fields to use for indexing the pods. They should form a unique Pod identifier across the cluster.
 Can be any of: `MAC`, `IP`, `Interface`.
 Fields absent from the 'k8s.v1.cni.cncf.io/network-status' annotation must not be added to the index.<br/>
+          <br/>
+            <i>Enum</i>: MAC, IP, Interface<br/>
         </td>
         <td>true</td>
       </tr><tr>
         <td><b>name</b></td>
         <td>string</td>
         <td>
-          `name` should match the network name as visible in the pods annotation 'k8s.v1.cni.cncf.io/network-status'.<br/>
+          Deprecated: `name` is unused.<br/>
         </td>
-        <td>true</td>
+        <td>false</td>
       </tr></tbody>
 </table>
 
@@ -11546,7 +11630,7 @@ available.<br/>
           `disableAlerts` is a list of alert groups that should be disabled from the default set of alerts.
 Possible values are: `NetObservNoFlows`, `NetObservLokiError`, `PacketDropsByKernel`, `PacketDropsByDevice`, `IPsecErrors`, `NetpolDenied`,
 `LatencyHighTrend`, `DNSErrors`, `DNSNxDomain`, `ExternalEgressHighTrend`, `ExternalIngressHighTrend`, `Ingress5xxErrors`, `IngressHTTPLatencyTrend`.
-More information on alerts: https://github.com/netobserv/network-observability-operator/blob/main/docs/HealthRules.md<br/>
+More information on alerts: https://github.com/netobserv/netobserv-operator/blob/main/docs/HealthRules.md<br/>
         </td>
         <td>false</td>
       </tr><tr>
@@ -11555,7 +11639,7 @@ More information on alerts: https://github.com/netobserv/network-observability-o
         <td>
           `healthRules` is a list of health rules to be created for Prometheus, organized by templates and variants.
 Each health rule can be configured to generate either alerts or recording rules based on the mode field.
-More information on health rules: https://github.com/netobserv/network-observability-operator/blob/main/docs/HealthRules.md<br/>
+More information on health rules: https://github.com/netobserv/netobserv-operator/blob/main/docs/HealthRules.md<br/>
         </td>
         <td>false</td>
       </tr><tr>
@@ -11571,7 +11655,9 @@ Metrics enabled by default are:
 `workload_egress_bytes_total`, `namespace_drop_packets_total` (when `PacketDrop` feature is enabled),
 `namespace_rtt_seconds` (when `FlowRTT` feature is enabled), `namespace_dns_latency_seconds` (when `DNSTracking` feature is enabled),
 `namespace_network_policy_events_total` (when `NetworkEvents` feature is enabled).
-More information, with full list of available metrics: https://github.com/netobserv/network-observability-operator/blob/main/docs/Metrics.md<br/>
+More information, with full list of available metrics: https://github.com/netobserv/netobserv-operator/blob/main/docs/Metrics.md<br/>
+          <br/>
+            <i>Enum</i>: namespace_egress_bytes_total, namespace_egress_packets_total, namespace_ingress_bytes_total, namespace_ingress_packets_total, namespace_flows_total, node_egress_bytes_total, node_egress_packets_total, node_ingress_bytes_total, node_ingress_packets_total, node_flows_total, workload_egress_bytes_total, workload_egress_packets_total, workload_ingress_bytes_total, workload_ingress_packets_total, workload_flows_total, namespace_drop_bytes_total, namespace_drop_packets_total, node_drop_bytes_total, node_drop_packets_total, workload_drop_bytes_total, workload_drop_packets_total, namespace_rtt_seconds, node_rtt_seconds, workload_rtt_seconds, namespace_dns_latency_seconds, node_dns_latency_seconds, workload_dns_latency_seconds, node_network_policy_events_total, namespace_network_policy_events_total, workload_network_policy_events_total, node_ipsec_flows_total, namespace_ipsec_flows_total, workload_ipsec_flows_total, node_to_node_ingress_flows_total<br/>
         </td>
         <td>false</td>
       </tr><tr>
@@ -11609,7 +11695,7 @@ More information, with full list of available metrics: https://github.com/netobs
 Possible values are: `PacketDropsByKernel`, `PacketDropsByDevice`, `IPsecErrors`, `NetpolDenied`,
 `LatencyHighTrend`, `DNSErrors`, `DNSNxDomain`, `ExternalEgressHighTrend`, `ExternalIngressHighTrend`, `Ingress5xxErrors`, `IngressHTTPLatencyTrend`.
 Note: `NetObservNoFlows` and `NetObservLokiError` are alert-only and cannot be used as health rules.
-More information on health rules: https://github.com/netobserv/network-observability-operator/blob/main/docs/HealthRules.md<br/>
+More information on health rules: https://github.com/netobserv/netobserv-operator/blob/main/docs/HealthRules.md<br/>
           <br/>
             <i>Enum</i>: PacketDropsByKernel, PacketDropsByDevice, IPsecErrors, NetpolDenied, LatencyHighTrend, DNSErrors, DNSNxDomain, ExternalEgressHighTrend, ExternalIngressHighTrend, Ingress5xxErrors, IngressHTTPLatencyTrend<br/>
         </td>
@@ -12052,6 +12138,262 @@ only the result of this request.<br/>
 </table>
 
 
+### FlowCollector.spec.processor.service
+<sup><sup>[↩ Parent](#flowcollectorspecprocessor)</sup></sup>
+
+
+
+Service configuration, only used when `spec.deploymentModel` is `Service`.
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+        <td><b>tlsType</b></td>
+        <td>enum</td>
+        <td>
+          Select the type of TLS configuration:<br>
+- `Disabled` to not configure TLS for the endpoint. Disabling TLS results in a less secure deployment model.<br>
+- `Provided` to manually provide the key and certificate references.<br>
+- `Auto` (default) to enable automatically based on the running environment.<br>
+- `Auto-mTLS` to preconfigure mTLS. [Unsupported (*)].<br>
+See also: https://github.com/netobserv/netobserv-operator/blob/main/docs/TLS.md.<br/>
+          <br/>
+            <i>Enum</i>: Disabled, Provided, Auto, Auto-mTLS<br/>
+            <i>Default</i>: Auto<br/>
+        </td>
+        <td>true</td>
+      </tr><tr>
+        <td><b><a href="#flowcollectorspecprocessorserviceprovidedcertificates">providedCertificates</a></b></td>
+        <td>object</td>
+        <td>
+          TLS or mTLS configuration when `type` is set to `Provided`.<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>
+
+
+### FlowCollector.spec.processor.service.providedCertificates
+<sup><sup>[↩ Parent](#flowcollectorspecprocessorservice)</sup></sup>
+
+
+
+TLS or mTLS configuration when `type` is set to `Provided`.
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+        <td><b><a href="#flowcollectorspecprocessorserviceprovidedcertificatescafile">caFile</a></b></td>
+        <td>object</td>
+        <td>
+          Reference to the CA file.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b><a href="#flowcollectorspecprocessorserviceprovidedcertificatesclientcert">clientCert</a></b></td>
+        <td>object</td>
+        <td>
+          TLS client certificate reference, used for mTLS. Leave unset for simple TLS.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b><a href="#flowcollectorspecprocessorserviceprovidedcertificatesservercert">serverCert</a></b></td>
+        <td>object</td>
+        <td>
+          TLS server certificate reference.<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>
+
+
+### FlowCollector.spec.processor.service.providedCertificates.caFile
+<sup><sup>[↩ Parent](#flowcollectorspecprocessorserviceprovidedcertificates)</sup></sup>
+
+
+
+Reference to the CA file.
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+        <td><b>file</b></td>
+        <td>string</td>
+        <td>
+          File name within the config map or secret.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>name</b></td>
+        <td>string</td>
+        <td>
+          Name of the config map or secret containing the file.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>namespace</b></td>
+        <td>string</td>
+        <td>
+          Namespace of the config map or secret containing the file. If omitted, the default is to use the same namespace as where NetObserv is deployed.
+If the namespace is different, the config map or the secret is copied so that it can be mounted as required.<br/>
+          <br/>
+            <i>Default</i>: <br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>type</b></td>
+        <td>enum</td>
+        <td>
+          Type for the file reference: `configmap` or `secret`.<br/>
+          <br/>
+            <i>Enum</i>: configmap, secret<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>
+
+
+### FlowCollector.spec.processor.service.providedCertificates.clientCert
+<sup><sup>[↩ Parent](#flowcollectorspecprocessorserviceprovidedcertificates)</sup></sup>
+
+
+
+TLS client certificate reference, used for mTLS. Leave unset for simple TLS.
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+        <td><b>certFile</b></td>
+        <td>string</td>
+        <td>
+          `certFile` defines the path to the certificate file name within the config map or secret.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>certKey</b></td>
+        <td>string</td>
+        <td>
+          `certKey` defines the path to the certificate private key file name within the config map or secret. Omit when the key is not necessary.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>name</b></td>
+        <td>string</td>
+        <td>
+          Name of the config map or secret containing certificates.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>namespace</b></td>
+        <td>string</td>
+        <td>
+          Namespace of the config map or secret containing certificates. If omitted, the default is to use the same namespace as where NetObserv is deployed.
+If the namespace is different, the config map or the secret is copied so that it can be mounted as required.<br/>
+          <br/>
+            <i>Default</i>: <br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>type</b></td>
+        <td>enum</td>
+        <td>
+          Type for the certificate reference: `configmap` or `secret`.<br/>
+          <br/>
+            <i>Enum</i>: configmap, secret<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>
+
+
+### FlowCollector.spec.processor.service.providedCertificates.serverCert
+<sup><sup>[↩ Parent](#flowcollectorspecprocessorserviceprovidedcertificates)</sup></sup>
+
+
+
+TLS server certificate reference.
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+        <td><b>certFile</b></td>
+        <td>string</td>
+        <td>
+          `certFile` defines the path to the certificate file name within the config map or secret.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>certKey</b></td>
+        <td>string</td>
+        <td>
+          `certKey` defines the path to the certificate private key file name within the config map or secret. Omit when the key is not necessary.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>name</b></td>
+        <td>string</td>
+        <td>
+          Name of the config map or secret containing certificates.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>namespace</b></td>
+        <td>string</td>
+        <td>
+          Namespace of the config map or secret containing certificates. If omitted, the default is to use the same namespace as where NetObserv is deployed.
+If the namespace is different, the config map or the secret is copied so that it can be mounted as required.<br/>
+          <br/>
+            <i>Default</i>: <br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>type</b></td>
+        <td>enum</td>
+        <td>
+          Type for the certificate reference: `configmap` or `secret`.<br/>
+          <br/>
+            <i>Enum</i>: configmap, secret<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>
+
+
 ### FlowCollector.spec.processor.slicesConfig
 <sup><sup>[↩ Parent](#flowcollectorspecprocessor)</sup></sup>
 
@@ -12243,6 +12585,8 @@ Not all queries are transposable from Loki to Prometheus. Hence, if Loki is disa
 such as getting per-pod information or viewing raw flows.
 If both Prometheus and Loki are enabled, Prometheus takes precedence and Loki is used as a fallback for queries that Prometheus cannot handle.
 If they are both disabled, the Console plugin is not deployed.<br/>
+          <br/>
+            <i>Default</i>: true<br/>
         </td>
         <td>false</td>
       </tr><tr>
@@ -12724,6 +13068,20 @@ If the namespace is different, the config map or the secret is copied so that it
         </td>
         <td>true</td>
       </tr><tr>
+        <td><b><a href="#flowcollectorstatuscomponents">components</a></b></td>
+        <td>object</td>
+        <td>
+          `components` reports the status of operator-managed components (agent, processor, plugin).<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b><a href="#flowcollectorstatusintegrations">integrations</a></b></td>
+        <td>object</td>
+        <td>
+          `integrations` reports the status of external integrations (Loki, monitoring, exporters).<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
         <td><b>namespace</b></td>
         <td>string</td>
         <td>
@@ -12807,6 +13165,532 @@ with respect to the current state of the instance.<br/>
           <br/>
             <i>Format</i>: int64<br/>
             <i>Minimum</i>: 0<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>
+
+
+### FlowCollector.status.components
+<sup><sup>[↩ Parent](#flowcollectorstatus)</sup></sup>
+
+
+
+`components` reports the status of operator-managed components (agent, processor, plugin).
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+        <td><b><a href="#flowcollectorstatuscomponentsagent">agent</a></b></td>
+        <td>object</td>
+        <td>
+          `agent` reports the status of the eBPF agent component.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b><a href="#flowcollectorstatuscomponentsplugin">plugin</a></b></td>
+        <td>object</td>
+        <td>
+          `plugin` reports the status of the console plugin component.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b><a href="#flowcollectorstatuscomponentsprocessor">processor</a></b></td>
+        <td>object</td>
+        <td>
+          `processor` reports the status of the flowlogs-pipeline component.<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>
+
+
+### FlowCollector.status.components.agent
+<sup><sup>[↩ Parent](#flowcollectorstatuscomponents)</sup></sup>
+
+
+
+`agent` reports the status of the eBPF agent component.
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+        <td><b>state</b></td>
+        <td>enum</td>
+        <td>
+          `state` reports the overall health of the component.<br/>
+          <br/>
+            <i>Enum</i>: Ready, InProgress, Failure, Degraded, Unknown, Unused<br/>
+        </td>
+        <td>true</td>
+      </tr><tr>
+        <td><b>desiredReplicas</b></td>
+        <td>integer</td>
+        <td>
+          `desiredReplicas` is the desired number of replicas (for Deployments) or nodes (for DaemonSets).<br/>
+          <br/>
+            <i>Format</i>: int32<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>message</b></td>
+        <td>string</td>
+        <td>
+          `message` is a human-readable description of the component's current state.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>podIssues</b></td>
+        <td>string</td>
+        <td>
+          `podIssues` is a summary of unhealthy pod issues (e.g., "3 pods CrashLoopBackOff: kafka connection refused").<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>readyReplicas</b></td>
+        <td>integer</td>
+        <td>
+          `readyReplicas` is the number of ready replicas (for Deployments) or up-to-date nodes (for DaemonSets).<br/>
+          <br/>
+            <i>Format</i>: int32<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>reason</b></td>
+        <td>string</td>
+        <td>
+          `reason` is a one-word CamelCase reason for the component's current state.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>unhealthyPodCount</b></td>
+        <td>integer</td>
+        <td>
+          `unhealthyPodCount` is the number of pods in a degraded state (CrashLoopBackOff, OOMKilled, etc.).<br/>
+          <br/>
+            <i>Format</i>: int32<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>
+
+
+### FlowCollector.status.components.plugin
+<sup><sup>[↩ Parent](#flowcollectorstatuscomponents)</sup></sup>
+
+
+
+`plugin` reports the status of the console plugin component.
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+        <td><b>state</b></td>
+        <td>enum</td>
+        <td>
+          `state` reports the overall health of the component.<br/>
+          <br/>
+            <i>Enum</i>: Ready, InProgress, Failure, Degraded, Unknown, Unused<br/>
+        </td>
+        <td>true</td>
+      </tr><tr>
+        <td><b>desiredReplicas</b></td>
+        <td>integer</td>
+        <td>
+          `desiredReplicas` is the desired number of replicas (for Deployments) or nodes (for DaemonSets).<br/>
+          <br/>
+            <i>Format</i>: int32<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>message</b></td>
+        <td>string</td>
+        <td>
+          `message` is a human-readable description of the component's current state.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>podIssues</b></td>
+        <td>string</td>
+        <td>
+          `podIssues` is a summary of unhealthy pod issues (e.g., "3 pods CrashLoopBackOff: kafka connection refused").<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>readyReplicas</b></td>
+        <td>integer</td>
+        <td>
+          `readyReplicas` is the number of ready replicas (for Deployments) or up-to-date nodes (for DaemonSets).<br/>
+          <br/>
+            <i>Format</i>: int32<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>reason</b></td>
+        <td>string</td>
+        <td>
+          `reason` is a one-word CamelCase reason for the component's current state.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>unhealthyPodCount</b></td>
+        <td>integer</td>
+        <td>
+          `unhealthyPodCount` is the number of pods in a degraded state (CrashLoopBackOff, OOMKilled, etc.).<br/>
+          <br/>
+            <i>Format</i>: int32<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>
+
+
+### FlowCollector.status.components.processor
+<sup><sup>[↩ Parent](#flowcollectorstatuscomponents)</sup></sup>
+
+
+
+`processor` reports the status of the flowlogs-pipeline component.
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+        <td><b>state</b></td>
+        <td>enum</td>
+        <td>
+          `state` reports the overall health of the component.<br/>
+          <br/>
+            <i>Enum</i>: Ready, InProgress, Failure, Degraded, Unknown, Unused<br/>
+        </td>
+        <td>true</td>
+      </tr><tr>
+        <td><b>desiredReplicas</b></td>
+        <td>integer</td>
+        <td>
+          `desiredReplicas` is the desired number of replicas (for Deployments) or nodes (for DaemonSets).<br/>
+          <br/>
+            <i>Format</i>: int32<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>message</b></td>
+        <td>string</td>
+        <td>
+          `message` is a human-readable description of the component's current state.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>podIssues</b></td>
+        <td>string</td>
+        <td>
+          `podIssues` is a summary of unhealthy pod issues (e.g., "3 pods CrashLoopBackOff: kafka connection refused").<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>readyReplicas</b></td>
+        <td>integer</td>
+        <td>
+          `readyReplicas` is the number of ready replicas (for Deployments) or up-to-date nodes (for DaemonSets).<br/>
+          <br/>
+            <i>Format</i>: int32<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>reason</b></td>
+        <td>string</td>
+        <td>
+          `reason` is a one-word CamelCase reason for the component's current state.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>unhealthyPodCount</b></td>
+        <td>integer</td>
+        <td>
+          `unhealthyPodCount` is the number of pods in a degraded state (CrashLoopBackOff, OOMKilled, etc.).<br/>
+          <br/>
+            <i>Format</i>: int32<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>
+
+
+### FlowCollector.status.integrations
+<sup><sup>[↩ Parent](#flowcollectorstatus)</sup></sup>
+
+
+
+`integrations` reports the status of external integrations (Loki, monitoring, exporters).
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+        <td><b><a href="#flowcollectorstatusintegrationsexportersindex">exporters</a></b></td>
+        <td>[]object</td>
+        <td>
+          `exporters` reports the status of configured exporters.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b><a href="#flowcollectorstatusintegrationsloki">loki</a></b></td>
+        <td>object</td>
+        <td>
+          `loki` reports the status of the Loki integration.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b><a href="#flowcollectorstatusintegrationsmonitoring">monitoring</a></b></td>
+        <td>object</td>
+        <td>
+          `monitoring` reports the status of monitoring (dashboards, ServiceMonitor, etc.).<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>
+
+
+### FlowCollector.status.integrations.exporters[index]
+<sup><sup>[↩ Parent](#flowcollectorstatusintegrations)</sup></sup>
+
+
+
+`FlowCollectorExporterStatus` represents the status of a configured exporter.
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+        <td><b>name</b></td>
+        <td>string</td>
+        <td>
+          `name` is a generated identifier for this exporter (e.g., "kafka-export-0"), derived from its type and position in spec.exporters.<br/>
+        </td>
+        <td>true</td>
+      </tr><tr>
+        <td><b>state</b></td>
+        <td>enum</td>
+        <td>
+          `state` reports the health of this exporter.<br/>
+          <br/>
+            <i>Enum</i>: Ready, InProgress, Failure, Degraded, Unknown<br/>
+        </td>
+        <td>true</td>
+      </tr><tr>
+        <td><b>type</b></td>
+        <td>enum</td>
+        <td>
+          `type` is the exporter type (Kafka, IPFIX, OpenTelemetry).<br/>
+          <br/>
+            <i>Enum</i>: Kafka, IPFIX, OpenTelemetry<br/>
+        </td>
+        <td>true</td>
+      </tr><tr>
+        <td><b>message</b></td>
+        <td>string</td>
+        <td>
+          `message` is a human-readable description of the exporter's current state.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>reason</b></td>
+        <td>string</td>
+        <td>
+          `reason` is a one-word CamelCase reason for the exporter's current state.<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>
+
+
+### FlowCollector.status.integrations.loki
+<sup><sup>[↩ Parent](#flowcollectorstatusintegrations)</sup></sup>
+
+
+
+`loki` reports the status of the Loki integration.
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+        <td><b>state</b></td>
+        <td>enum</td>
+        <td>
+          `state` reports the overall health of the component.<br/>
+          <br/>
+            <i>Enum</i>: Ready, InProgress, Failure, Degraded, Unknown, Unused<br/>
+        </td>
+        <td>true</td>
+      </tr><tr>
+        <td><b>desiredReplicas</b></td>
+        <td>integer</td>
+        <td>
+          `desiredReplicas` is the desired number of replicas (for Deployments) or nodes (for DaemonSets).<br/>
+          <br/>
+            <i>Format</i>: int32<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>message</b></td>
+        <td>string</td>
+        <td>
+          `message` is a human-readable description of the component's current state.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>podIssues</b></td>
+        <td>string</td>
+        <td>
+          `podIssues` is a summary of unhealthy pod issues (e.g., "3 pods CrashLoopBackOff: kafka connection refused").<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>readyReplicas</b></td>
+        <td>integer</td>
+        <td>
+          `readyReplicas` is the number of ready replicas (for Deployments) or up-to-date nodes (for DaemonSets).<br/>
+          <br/>
+            <i>Format</i>: int32<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>reason</b></td>
+        <td>string</td>
+        <td>
+          `reason` is a one-word CamelCase reason for the component's current state.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>unhealthyPodCount</b></td>
+        <td>integer</td>
+        <td>
+          `unhealthyPodCount` is the number of pods in a degraded state (CrashLoopBackOff, OOMKilled, etc.).<br/>
+          <br/>
+            <i>Format</i>: int32<br/>
+        </td>
+        <td>false</td>
+      </tr></tbody>
+</table>
+
+
+### FlowCollector.status.integrations.monitoring
+<sup><sup>[↩ Parent](#flowcollectorstatusintegrations)</sup></sup>
+
+
+
+`monitoring` reports the status of monitoring (dashboards, ServiceMonitor, etc.).
+
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Description</th>
+            <th>Required</th>
+        </tr>
+    </thead>
+    <tbody><tr>
+        <td><b>state</b></td>
+        <td>enum</td>
+        <td>
+          `state` reports the overall health of the component.<br/>
+          <br/>
+            <i>Enum</i>: Ready, InProgress, Failure, Degraded, Unknown, Unused<br/>
+        </td>
+        <td>true</td>
+      </tr><tr>
+        <td><b>desiredReplicas</b></td>
+        <td>integer</td>
+        <td>
+          `desiredReplicas` is the desired number of replicas (for Deployments) or nodes (for DaemonSets).<br/>
+          <br/>
+            <i>Format</i>: int32<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>message</b></td>
+        <td>string</td>
+        <td>
+          `message` is a human-readable description of the component's current state.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>podIssues</b></td>
+        <td>string</td>
+        <td>
+          `podIssues` is a summary of unhealthy pod issues (e.g., "3 pods CrashLoopBackOff: kafka connection refused").<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>readyReplicas</b></td>
+        <td>integer</td>
+        <td>
+          `readyReplicas` is the number of ready replicas (for Deployments) or up-to-date nodes (for DaemonSets).<br/>
+          <br/>
+            <i>Format</i>: int32<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>reason</b></td>
+        <td>string</td>
+        <td>
+          `reason` is a one-word CamelCase reason for the component's current state.<br/>
+        </td>
+        <td>false</td>
+      </tr><tr>
+        <td><b>unhealthyPodCount</b></td>
+        <td>integer</td>
+        <td>
+          `unhealthyPodCount` is the number of pods in a degraded state (CrashLoopBackOff, OOMKilled, etc.).<br/>
+          <br/>
+            <i>Format</i>: int32<br/>
         </td>
         <td>false</td>
       </tr></tbody>

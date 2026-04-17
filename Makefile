@@ -15,7 +15,7 @@ IMAGE_REGISTRY ?= quay.io
 REPO ?= $(IMAGE_REGISTRY)/$(IMAGE_ORG)
 
 # Component versions to use in bundle / release (do not use $VERSION for that)
-BUNDLE_VERSION ?= 1.11.0-community
+BUNDLE_VERSION ?= 1.11.3-community
 # console plugin
 export PLG_VERSION ?= v${BUNDLE_VERSION}
 # flowlogs-pipeline
@@ -78,6 +78,7 @@ IMAGE ?= $(IMAGE_TAG_BASE):$(VERSION)
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.23
 GOLANGCI_LINT_VERSION = v2.8.0
+CRDOC_VERSION = 0.6.4
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -220,10 +221,6 @@ ENVTEST = $(shell pwd)/bin/setup-envtest
 envtest: ## Download envtest-setup locally if necessary.
 	$(call go-install-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest@latest)
 
-CRDOC = $(shell pwd)/bin/crdoc
-crdoc: ## Download crdoc locally if necessary.
-	$(call go-install-tool,$(CRDOC),fybrik.io/crdoc@v0.5.2)
-
 # go-install-tool will 'go install' any package $2 and install it to $1.
 PROJECT_DIR := $(shell dirname $(abspath $(firstword $(MAKEFILE_LIST))))
 define go-install-tool
@@ -266,6 +263,22 @@ ifeq (,$(shell which $(YQ) 2>/dev/null))
 	}
 endif
 
+.PHONY: CRDOC
+CRDOC = ./bin/crdoc
+CRDOC: ## Download crdoc locally if necessary.
+ifeq (,$(shell ($(CRDOC) --version | grep $(CRDOC_VERSION)) 2>/dev/null))
+	@{ \
+	echo "### Downloading crdoc"; \
+	set -e ;\
+	TMP_DIR=$$(mktemp -d) ;\
+	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH | sed 's/amd64/x86_64/') && \
+	curl -sSLo $$TMP_DIR/crdoc.tar.gz https://github.com/fybrik/crdoc/releases/download/v$(CRDOC_VERSION)/crdoc_$${OS^}_$${ARCH}.tar.gz && \
+	tar -zxf $$TMP_DIR/crdoc.tar.gz --directory $$TMP_DIR/ ;\
+	mkdir -p $(dir $(CRDOC)) && mv $$TMP_DIR/crdoc $(CRDOC) ;\
+	rm -rf $$TMP_DIR ;\
+	}
+endif
+
 ##@ Code / files generation
 manifests: YQ controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) \
@@ -286,7 +299,7 @@ ifndef SKIP_CODE_GEN
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 endif
 
-doc: crdoc ## Generate markdown documentation
+doc: CRDOC ## Generate markdown documentation
 	$(CRDOC) --resources config/crd/bases/flows.netobserv.io_flowcollectors.yaml --output docs/FlowCollector.md
 	$(CRDOC) --resources config/crd/bases/flows.netobserv.io_flowmetrics.yaml --output docs/FlowMetric.md
 	$(CRDOC) --resources config/crd/bases/flows.netobserv.io_flowcollectorslices.yaml --output docs/FlowCollectorSlice.md
@@ -374,6 +387,14 @@ extract-binaries: ## Extract all MULTIARCH_TARGETS binaries
 	mkdir -p release-assets; \
 	$(foreach target,$(MULTIARCH_TARGETS),$(call extract_target,$(target)))
 
+.PHONY: tar-image
+tar-image: MULTIARCH_TARGETS=amd64
+tar-image: image-build ## Build single arch (amd64) and save as a tar
+	$(OCI_BIN) tag $(IMAGE)-amd64 $(IMAGE)
+	mkdir -p ./out
+	$(OCI_BIN) save -o out/operator.tar $(IMAGE)
+	echo $(IMAGE) > ./out/operator-name
+
 ##@ Deployment
 
 install: kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
@@ -406,15 +427,11 @@ run: fmt lint ## Run a controller from your host.
 
 ##@ OLM
 
-.PHONY: bundle-prepare
-bundle-prepare: OPSDK generate kustomize set-manager-images ## Generate bundle manifests and metadata, then validate generated files.
-# $(OPSDK) generate kustomize manifests -q --input-dir $(BUNDLE_CONFIG) --output-dir $(BUNDLE_CONFIG)
-	$(SED) -i -r 's~network-observability-operator/blob/[^/]+/~network-observability-operator/blob/$(VERSION)/~g' ./config/csv/bases/netobserv-operator.clusterserviceversion.yaml
-	$(SED) -i -r 's~network-observability-operator/blob/[^/]+/~network-observability-operator/blob/$(VERSION)/~g' ./config/descriptions/upstream.md
-	$(SED) -i -r 's~network-observability-operator/blob/[^/]+/~network-observability-operator/blob/$(VERSION)/~g' ./config/descriptions/ocp.md
-
-.PHONY: bundle
-bundle: bundle-prepare ## Generate final bundle files.
+.PHONY: bundle-nogen
+bundle-nogen: OPSDK kustomize set-manager-images ## Generate final bundle files, without prior code/doc generation.
+	$(SED) -i -r 's~netobserv-operator/blob/[^/]+/~netobserv-operator/blob/$(VERSION)/~g' ./config/csv/bases/netobserv-operator.clusterserviceversion.yaml
+	$(SED) -i -r 's~netobserv-operator/blob/[^/]+/~netobserv-operator/blob/$(VERSION)/~g' ./config/descriptions/upstream.md
+	$(SED) -i -r 's~netobserv-operator/blob/[^/]+/~netobserv-operator/blob/$(VERSION)/~g' ./config/descriptions/ocp.md
 	rm -r bundle/manifests || true
 	rm -r bundle/metadata || true
 	cp ./config/csv/bases/netobserv-operator.clusterserviceversion.yaml tmp-csv
@@ -437,6 +454,9 @@ endif
 	if [ $$(echo $${VALIDATION_OUTPUT} | grep -i 'warning' | wc -c) -gt 0 ]; then echo "please correct warnings and errors first"; exit -1 ; fi \
 	'
 
+.PHONY: bundle
+bundle: generate bundle-nogen ## Generate final bundle files, including prior code/doc generation.
+
 .PHONY: update-bundle
 update-bundle: VERSION=$(BUNDLE_VERSION)
 update-bundle: IMAGE_ORG=netobserv
@@ -451,7 +471,13 @@ bundle-build: ## Build the bundle image.
 
 .PHONY: bundle-push
 bundle-push: ## Push the bundle image.
-	$(OCI_BIN) push ${BUNDLE_IMAGE};
+	$(OCI_BIN) push ${BUNDLE_IMAGE}
+
+.PHONY: bundle-tar
+bundle-tar: bundle-build ## Build bundle image and save as a tar
+	mkdir -p ./out
+	$(OCI_BIN) save -o out/bundle.tar $(BUNDLE_IMAGE)
+	echo $(BUNDLE_IMAGE) > ./out/bundle-name
 
 # A comma-separated list of bundle images (e.g. make catalog-build BUNDLE_IMAGES=example.com/operator-bundle:v0.1.0,example.com/operator-bundle:v0.2.0).
 # These images MUST exist in a registry and be pull-able.
@@ -470,17 +496,13 @@ endif
 # https://github.com/operator-framework/community-operators/blob/7f1438c/docs/packaging-operator.md#updating-your-existing-operator
 .PHONY: catalog-build
 catalog-build: opm ## Build a catalog image.
-	OPM=$(OPM) BUNDLE_IMAGE=$(BUNDLE_IMAGE) BUNDLE_TAG="v$(BUNDLE_VERSION)" ./hack/update_fbc.sh
+	OPM=$(OPM) BUNDLE_TAG="v$(BUNDLE_VERSION)" ./hack/update_fbc.sh
 	$(OCI_BIN) build $(OCI_BUILD_OPTS) --build-arg CATALOG_PATH="catalog/out/v$(BUNDLE_VERSION)" -f catalog.Dockerfile -t $(CATALOG_IMAGE) .
-
-shortlived-catalog-build: ## Build a temporary catalog image, expiring after 2 weeks on quay
-	$(MAKE) catalog-build CATALOG_IMAGE=temp-catalog
-	echo "FROM temp-catalog" | $(OCI_BIN) build --label quay.expires-after=2w -t $(CATALOG_IMAGE) -
 
 # Push the catalog image.
 .PHONY: catalog-push
 catalog-push: ## Push a catalog image.
-	$(OCI_BIN) push ${CATALOG_IMAGE};
+	$(OCI_BIN) push ${CATALOG_IMAGE}
 
 # Deploy the catalog.
 .PHONY: catalog-deploy
@@ -491,6 +513,14 @@ catalog-deploy: ## Deploy a catalog image.
 .PHONY: catalog-undeploy
 catalog-undeploy: ## Undeploy a catalog image.
 	kubectl delete -f ./config/samples/catalog/catalog.yaml
+
+.PHONY: catalog-tar
+catalog-tar: ## Build catalog image and save as a tar
+	mkdir -p ./out
+	$(MAKE) catalog-build CATALOG_IMAGE=temp-catalog
+	echo "FROM temp-catalog" | $(OCI_BIN) build --label quay.expires-after=2w -t $(CATALOG_IMAGE) -
+	$(OCI_BIN) save -o out/catalog.tar $(CATALOG_IMAGE)
+	echo $(CATALOG_IMAGE) > ./out/catalog-name
 
 ##@ Misc
 
@@ -507,8 +537,8 @@ related-release-notes: ## Grab release notes for related components (to be inser
 	echo -e "<details><summary><b>Flowlogs-Pipeline</b></summary>\n\n" >> /tmp/related.md
 	curl -s  https://api.github.com/repos/netobserv/flowlogs-pipeline/releases/tags/$(FLP_VERSION) | jq -r .body | xargs -0 printf "%b" | sed -r "s/##/###/" >> /tmp/related.md
 	echo -e "</details>\n" >> /tmp/related.md
-	echo -e "<details><summary><b>Console Plugin</b></summary>\n\n" >> /tmp/related.md
-	curl -s  https://api.github.com/repos/netobserv/network-observability-console-plugin/releases/tags/$(PLG_VERSION) | jq -r .body | xargs -0 printf "%b" | sed -r "s/##/###/" >> /tmp/related.md
+	echo -e "<details><summary><b>Web Console</b></summary>\n\n" >> /tmp/related.md
+	curl -s  https://api.github.com/repos/netobserv/netobserv-web-console/releases/tags/$(PLG_VERSION) | jq -r .body | xargs -0 printf "%b" | sed -r "s/##/###/" >> /tmp/related.md
 	echo -e "</details>\n" >> /tmp/related.md
 	wl-copy < /tmp/related.md
 	cat /tmp/related.md

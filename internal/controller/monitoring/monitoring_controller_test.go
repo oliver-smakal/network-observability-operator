@@ -2,27 +2,22 @@
 package monitoring
 
 import (
-	"time"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	flowslatest "github.com/netobserv/network-observability-operator/api/flowcollector/v1beta2"
-	metricslatest "github.com/netobserv/network-observability-operator/api/flowmetrics/v1alpha1"
-	. "github.com/netobserv/network-observability-operator/internal/controller/controllerstest"
-	"github.com/netobserv/network-observability-operator/internal/pkg/dashboards"
-	"github.com/netobserv/network-observability-operator/internal/pkg/test"
+	flowslatest "github.com/netobserv/netobserv-operator/api/flowcollector/v1beta2"
+	metricslatest "github.com/netobserv/netobserv-operator/api/flowmetrics/v1alpha1"
+	. "github.com/netobserv/netobserv-operator/internal/controller/controllerstest"
+	"github.com/netobserv/netobserv-operator/internal/pkg/dashboards"
+	"github.com/netobserv/netobserv-operator/internal/pkg/test"
 )
 
 const (
-	timeout                     = test.Timeout
-	interval                    = test.Interval
-	conntrackEndTimeout         = 10 * time.Second
-	conntrackTerminatingTimeout = 5 * time.Second
-	conntrackHeartbeatInterval  = 30 * time.Second
+	timeout  = test.Timeout
+	interval = test.Interval
 )
 
 var (

@@ -4,9 +4,9 @@ import (
 	"testing"
 
 	"github.com/netobserv/flowlogs-pipeline/pkg/api"
-	flowslatest "github.com/netobserv/network-observability-operator/api/flowcollector/v1beta2"
-	"github.com/netobserv/network-observability-operator/internal/pkg/metrics"
-	"github.com/netobserv/network-observability-operator/internal/pkg/test/util"
+	flowslatest "github.com/netobserv/netobserv-operator/api/flowcollector/v1beta2"
+	"github.com/netobserv/netobserv-operator/internal/pkg/metrics"
+	"github.com/netobserv/netobserv-operator/internal/pkg/test/util"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,12 +21,14 @@ func TestOtelTransformConfig(t *testing.T) {
 		{Input: "DnsFlagsResponseCode", Output: "dns.responsecode", Multiplier: 0},
 		{Input: "DnsId", Output: "dns.id", Multiplier: 0},
 		{Input: "DnsLatencyMs", Output: "dns.latency", Multiplier: 0},
+		{Input: "DnsName", Output: "dns.name", Multiplier: 0},
 		{Input: "Dscp", Output: "dscp", Multiplier: 0},
 		{Input: "DstAddr", Output: "destination.address", Multiplier: 0},
 		{Input: "DstK8S_HostIP", Output: "destination.k8s.host.address", Multiplier: 0},
 		{Input: "DstK8S_HostName", Output: "destination.k8s.host.name", Multiplier: 0},
 		{Input: "DstK8S_Name", Output: "destination.k8s.name", Multiplier: 0},
 		{Input: "DstK8S_Namespace", Output: "destination.k8s.namespace.name", Multiplier: 0},
+		{Input: "DstK8S_NetworkName", Output: "destination.network.name", Multiplier: 0},
 		{Input: "DstK8S_OwnerName", Output: "destination.k8s.owner.name", Multiplier: 0},
 		{Input: "DstK8S_OwnerType", Output: "destination.k8s.owner.kind", Multiplier: 0},
 		{Input: "DstK8S_Type", Output: "destination.k8s.kind", Multiplier: 0},
@@ -36,6 +38,7 @@ func TestOtelTransformConfig(t *testing.T) {
 		{Input: "DstSubnetLabel", Output: "destination.subnet.label", Multiplier: 0},
 		{Input: "Flags", Output: "tcp.flags", Multiplier: 0},
 		{Input: "FlowDirection", Output: "host.direction", Multiplier: 0},
+		{Input: "IPSecStatus", Output: "ipsec.status", Multiplier: 0},
 		{Input: "IcmpCode", Output: "icmp.code", Multiplier: 0},
 		{Input: "IcmpType", Output: "icmp.type", Multiplier: 0},
 		{Input: "IfDirections", Output: "interface.directions", Multiplier: 0},
@@ -54,6 +57,7 @@ func TestOtelTransformConfig(t *testing.T) {
 		{Input: "SrcK8S_HostName", Output: "source.k8s.host.name", Multiplier: 0},
 		{Input: "SrcK8S_Name", Output: "source.k8s.name", Multiplier: 0},
 		{Input: "SrcK8S_Namespace", Output: "source.k8s.namespace.name", Multiplier: 0},
+		{Input: "SrcK8S_NetworkName", Output: "source.network.name", Multiplier: 0},
 		{Input: "SrcK8S_OwnerName", Output: "source.k8s.owner.name", Multiplier: 0},
 		{Input: "SrcK8S_OwnerType", Output: "source.k8s.owner.kind", Multiplier: 0},
 		{Input: "SrcK8S_Type", Output: "source.k8s.kind", Multiplier: 0},

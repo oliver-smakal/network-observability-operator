@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"reflect"
 
-	flowslatest "github.com/netobserv/network-observability-operator/api/flowcollector/v1beta2"
-	"github.com/netobserv/network-observability-operator/internal/pkg/helper"
+	flowslatest "github.com/netobserv/netobserv-operator/api/flowcollector/v1beta2"
+	"github.com/netobserv/netobserv-operator/internal/pkg/helper"
 	appsv1 "k8s.io/api/apps/v1"
 	ascv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
@@ -122,24 +122,26 @@ func ReconcileConfigMap(ctx context.Context, cl *helper.Client, current, desired
 	return cl.UpdateIfOwned(ctx, current, desired)
 }
 
+// ReconcileDaemonSet reconciles a DaemonSet and checks pod health when not ready.
 func ReconcileDaemonSet(ctx context.Context, ci *Instance, old, n *appsv1.DaemonSet, containerName string, report *helper.ChangeReport) error {
 	if !ci.Managed.Exists(old) {
 		ci.Status.SetCreatingDaemonSet(n)
 		return ci.CreateOwned(ctx, n)
 	}
-	ci.Status.CheckDaemonSetProgress(old)
+	ci.Status.CheckDaemonSetHealth(ctx, ci.Client, old)
 	if helper.PodChanged(&old.Spec.Template, &n.Spec.Template, containerName, report) {
 		return ci.UpdateIfOwned(ctx, old, n)
 	}
 	return nil
 }
 
+// ReconcileDeployment reconciles a Deployment and checks pod health when not ready.
 func ReconcileDeployment(ctx context.Context, ci *Instance, old, n *appsv1.Deployment, containerName string, ignoreReplicas bool, report *helper.ChangeReport) error {
 	if !ci.Managed.Exists(old) {
 		ci.Status.SetCreatingDeployment(n)
 		return ci.CreateOwned(ctx, n)
 	}
-	ci.Status.CheckDeploymentProgress(old)
+	ci.Status.CheckDeploymentHealth(ctx, ci.Client, old)
 	if ignoreReplicas {
 		n.Spec.Replicas = old.Spec.Replicas
 	}

@@ -1,11 +1,10 @@
 package networkpolicy
 
 import (
-	flowslatest "github.com/netobserv/network-observability-operator/api/flowcollector/v1beta2"
-	"github.com/netobserv/network-observability-operator/internal/controller/constants"
-	"github.com/netobserv/network-observability-operator/internal/pkg/cluster"
-	"github.com/netobserv/network-observability-operator/internal/pkg/helper"
-	"github.com/netobserv/network-observability-operator/internal/pkg/manager"
+	flowslatest "github.com/netobserv/netobserv-operator/api/flowcollector/v1beta2"
+	"github.com/netobserv/netobserv-operator/internal/controller/constants"
+	"github.com/netobserv/netobserv-operator/internal/pkg/helper"
+	"github.com/netobserv/netobserv-operator/internal/pkg/manager"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -50,21 +49,12 @@ func addAllowedNamespaces(np *networkingv1.NetworkPolicy, in, out []string) {
 	}
 }
 
-func buildMainNetworkPolicy(desired *flowslatest.FlowCollector, mgr *manager.Manager, cni cluster.NetworkType, apiServerIPs []string) (types.NamespacedName, *networkingv1.NetworkPolicy) {
+func buildMainNetworkPolicy(desired *flowslatest.FlowCollector, mgr *manager.Manager, cni flowslatest.NetworkType, apiServerIPs []string) (types.NamespacedName, *networkingv1.NetworkPolicy) {
 	ns := desired.Spec.GetNamespace()
 
 	name := types.NamespacedName{Name: netpolName, Namespace: ns}
-	switch cni {
-	case cluster.OpenShiftSDN:
+	if cni == flowslatest.OpenShiftSDN || !desired.Spec.DeployNetworkPolicy(cni != "") {
 		return name, nil
-	case cluster.OVNKubernetes:
-		if !desired.Spec.DeployNetworkPolicyOVN() {
-			return name, nil
-		}
-	default:
-		if !desired.Spec.DeployNetworkPolicyOtherCNI() {
-			return name, nil
-		}
 	}
 
 	np := networkingv1.NetworkPolicy{
@@ -121,7 +111,7 @@ func buildMainNetworkPolicy(desired *flowslatest.FlowCollector, mgr *manager.Man
 			allowedNamespacesIn = append(allowedNamespacesIn, constants.UWMonitoringNamespace)
 		}
 
-		if desired.Spec.UseConsolePlugin() && mgr.ClusterInfo.HasConsolePlugin() {
+		if desired.Spec.UseWebConsole() && mgr.ClusterInfo.HasConsolePlugin() {
 			advanced := helper.GetAdvancedPluginConfig(desired.Spec.ConsolePlugin.Advanced)
 			np.Spec.Ingress = append(np.Spec.Ingress, networkingv1.NetworkPolicyIngressRule{
 				From: []networkingv1.NetworkPolicyPeer{
@@ -195,6 +185,25 @@ func buildMainNetworkPolicy(desired *flowslatest.FlowCollector, mgr *manager.Man
 		// Not OpenShift
 		// Allow fetching from apiserver / kube-system
 		allowedNamespacesOut = append(allowedNamespacesOut, constants.KubeSystemNamespace)
+
+		if cni == flowslatest.OVNKubernetes && desired.Spec.DeploymentModel == flowslatest.DeploymentModelService {
+			// Upstream OVN-K: allow host-network on processor port (from agents)
+			// Can be counter-intuitive, but only the DeploymentModelService mode needs an explicit rule for host-network (agents are still hostnetwork pods)
+			advanced := helper.GetAdvancedProcessorConfig(&desired.Spec)
+			np.Spec.Ingress = append(np.Spec.Ingress, networkingv1.NetworkPolicyIngressRule{
+				From: []networkingv1.NetworkPolicyPeer{
+					{
+						NamespaceSelector: &metav1.LabelSelector{MatchLabels: map[string]string{
+							"kubernetes.io/metadata.name": "ovn-host-network",
+						}},
+					},
+				},
+				Ports: []networkingv1.NetworkPolicyPort{{
+					Protocol: ptr.To(corev1.ProtocolTCP),
+					Port:     ptr.To(intstr.FromInt32(*advanced.Port)),
+				}},
+			})
+		}
 	}
 
 	allowedNamespacesIn = append(allowedNamespacesIn, desired.Spec.NetworkPolicy.AdditionalNamespaces...)
@@ -205,22 +214,13 @@ func buildMainNetworkPolicy(desired *flowslatest.FlowCollector, mgr *manager.Man
 	return name, &np
 }
 
-func buildPrivilegedNetworkPolicy(desired *flowslatest.FlowCollector, mgr *manager.Manager, cni cluster.NetworkType) (types.NamespacedName, *networkingv1.NetworkPolicy) {
+func buildPrivilegedNetworkPolicy(desired *flowslatest.FlowCollector, mgr *manager.Manager, cni flowslatest.NetworkType) (types.NamespacedName, *networkingv1.NetworkPolicy) {
 	mainNs := desired.Spec.GetNamespace()
 	privNs := mainNs + constants.EBPFPrivilegedNSSuffix
 
 	name := types.NamespacedName{Name: netpolName, Namespace: privNs}
-	switch cni {
-	case cluster.OpenShiftSDN:
+	if cni == flowslatest.OpenShiftSDN || !desired.Spec.DeployNetworkPolicy(cni != "") {
 		return name, nil
-	case cluster.OVNKubernetes:
-		if !desired.Spec.DeployNetworkPolicyOVN() {
-			return name, nil
-		}
-	default:
-		if !desired.Spec.DeployNetworkPolicyOtherCNI() {
-			return name, nil
-		}
 	}
 
 	np := networkingv1.NetworkPolicy{

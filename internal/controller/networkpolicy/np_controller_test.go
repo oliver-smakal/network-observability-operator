@@ -2,8 +2,6 @@
 package networkpolicy
 
 import (
-	"time"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -12,17 +10,14 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	flowslatest "github.com/netobserv/network-observability-operator/api/flowcollector/v1beta2"
-	. "github.com/netobserv/network-observability-operator/internal/controller/controllerstest"
-	"github.com/netobserv/network-observability-operator/internal/pkg/test"
+	flowslatest "github.com/netobserv/netobserv-operator/api/flowcollector/v1beta2"
+	. "github.com/netobserv/netobserv-operator/internal/controller/controllerstest"
+	"github.com/netobserv/netobserv-operator/internal/pkg/test"
 )
 
 const (
-	timeout                     = test.Timeout
-	interval                    = test.Interval
-	conntrackEndTimeout         = 10 * time.Second
-	conntrackTerminatingTimeout = 5 * time.Second
-	conntrackHeartbeatInterval  = 30 * time.Second
+	timeout  = test.Timeout
+	interval = test.Interval
 )
 
 var (

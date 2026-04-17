@@ -2,21 +2,23 @@ package flp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
-	flowslatest "github.com/netobserv/network-observability-operator/api/flowcollector/v1beta2"
-	sliceslatest "github.com/netobserv/network-observability-operator/api/flowcollectorslice/v1alpha1"
-	metricslatest "github.com/netobserv/network-observability-operator/api/flowmetrics/v1alpha1"
-	"github.com/netobserv/network-observability-operator/internal/controller/constants"
-	"github.com/netobserv/network-observability-operator/internal/controller/flp/fmstatus"
-	"github.com/netobserv/network-observability-operator/internal/controller/flp/slicesstatus"
-	"github.com/netobserv/network-observability-operator/internal/controller/reconcilers"
-	"github.com/netobserv/network-observability-operator/internal/pkg/helper"
-	"github.com/netobserv/network-observability-operator/internal/pkg/manager"
-	"github.com/netobserv/network-observability-operator/internal/pkg/manager/status"
-	"github.com/netobserv/network-observability-operator/internal/pkg/watchers"
+	flowslatest "github.com/netobserv/netobserv-operator/api/flowcollector/v1beta2"
+	sliceslatest "github.com/netobserv/netobserv-operator/api/flowcollectorslice/v1alpha1"
+	metricslatest "github.com/netobserv/netobserv-operator/api/flowmetrics/v1alpha1"
+	"github.com/netobserv/netobserv-operator/internal/controller/constants"
+	"github.com/netobserv/netobserv-operator/internal/controller/flp/fmstatus"
+	"github.com/netobserv/netobserv-operator/internal/controller/flp/slicesstatus"
+	"github.com/netobserv/netobserv-operator/internal/controller/reconcilers"
+	"github.com/netobserv/netobserv-operator/internal/pkg/helper"
+	"github.com/netobserv/netobserv-operator/internal/pkg/manager"
+	"github.com/netobserv/netobserv-operator/internal/pkg/manager/status"
+	"github.com/netobserv/netobserv-operator/internal/pkg/watchers"
 	appsv1 "k8s.io/api/apps/v1"
 	ascv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
@@ -106,14 +108,21 @@ func (r *Reconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ctrl.Result
 	err = r.reconcile(ctx, clh, fc)
 	if err != nil {
 		l.Error(err, "FLP reconcile failure")
-		// Set status failure unless it was already set
 		if !r.status.HasFailure() {
-			r.status.SetFailure("FLPError", err.Error())
+			reason := "FLPError"
+			var ke *reconcilers.KafkaError
+			if errors.As(err, &ke) {
+				reason = "FLPKafkaError"
+			}
+			r.status.SetFailure(reason, err.Error())
 		}
 		return ctrl.Result{}, err
 	}
 
 	r.status.SetReady()
+	if r.mgr.Status.NeedsRequeue() {
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
 	return ctrl.Result{}, nil
 }
 
@@ -135,6 +144,7 @@ func (r *Reconciler) reconcile(ctx context.Context, clh *helper.Client, fc *flow
 		subnetLabels, err = r.getOpenShiftSubnets(ctx)
 		if err != nil {
 			log.Error(err, "error while reading subnet definitions")
+			r.status.SetDegraded("SubnetDetectionError", fmt.Sprintf("subnet auto-detect failed: %v", err))
 		}
 	}
 
@@ -183,7 +193,21 @@ func (r *Reconciler) reconcile(ctx context.Context, clh *helper.Client, fc *flow
 		}
 	}
 
+	// Track exporter status
+	r.updateExporterStatuses(fc)
+
 	return nil
+}
+
+func (r *Reconciler) updateExporterStatuses(fc *flowslatest.FlowCollector) {
+	r.mgr.Status.ClearExporters()
+	for i, exp := range fc.Spec.Exporters {
+		if exp == nil {
+			continue
+		}
+		name := fmt.Sprintf("%s-export-%d", strings.ToLower(string(exp.Type)), i)
+		r.mgr.Status.SetExporterStatus(name, string(exp.Type), string(status.StatusReady), "Configured", "")
+	}
 }
 
 func (r *Reconciler) newCommonInfo(clh *helper.Client, ns string, loki *helper.LokiConfig) reconcilers.Common {
@@ -211,7 +235,7 @@ func annotateKafkaExporterCerts(ctx context.Context, info *reconcilers.Common, e
 func annotateKafkaCerts(ctx context.Context, info *reconcilers.Common, spec *flowslatest.FlowCollectorKafka, prefix string, annotations map[string]string) error {
 	caDigest, userDigest, err := info.Watcher.ProcessMTLSCerts(ctx, info.Client, &spec.TLS, info.Namespace)
 	if err != nil {
-		return err
+		return reconcilers.WrapKafkaError(err)
 	}
 	if caDigest != "" {
 		annotations[watchers.Annotation(prefix+"-ca")] = caDigest
@@ -222,7 +246,7 @@ func annotateKafkaCerts(ctx context.Context, info *reconcilers.Common, spec *flo
 	if spec.SASL.UseSASL() {
 		saslDigest1, saslDigest2, err := info.Watcher.ProcessSASL(ctx, info.Client, &spec.SASL, info.Namespace)
 		if err != nil {
-			return err
+			return reconcilers.WrapKafkaError(err)
 		}
 		if saslDigest1 != "" {
 			annotations[watchers.Annotation(prefix+"-sd1")] = saslDigest1
@@ -235,14 +259,14 @@ func annotateKafkaCerts(ctx context.Context, info *reconcilers.Common, spec *flo
 }
 
 func reconcileMonitoringCerts(ctx context.Context, info *reconcilers.Common, tlsConfig *flowslatest.ServerTLS, ns string) error {
-	if tlsConfig.Type == flowslatest.ServerTLSProvided && tlsConfig.Provided != nil {
+	if tlsConfig.Type == flowslatest.TLSProvided && tlsConfig.Provided != nil {
 		_, err := info.Watcher.ProcessCertRef(ctx, info.Client, tlsConfig.Provided, ns)
 		if err != nil {
 			return err
 		}
 	}
-	if !tlsConfig.InsecureSkipVerify && tlsConfig.ProvidedCaFile != nil && tlsConfig.ProvidedCaFile.File != "" {
-		_, err := info.Watcher.ProcessFileReference(ctx, info.Client, *tlsConfig.ProvidedCaFile, ns)
+	if !tlsConfig.InsecureSkipVerify && tlsConfig.ProvidedCAFile != nil && tlsConfig.ProvidedCAFile.File != "" {
+		_, err := info.Watcher.ProcessFileReference(ctx, info.Client, *tlsConfig.ProvidedCAFile, ns)
 		if err != nil {
 			return err
 		}

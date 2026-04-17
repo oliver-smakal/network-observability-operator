@@ -12,8 +12,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 
-	flowslatest "github.com/netobserv/network-observability-operator/api/flowcollector/v1beta2"
-	"github.com/netobserv/network-observability-operator/internal/pkg/test"
+	flowslatest "github.com/netobserv/netobserv-operator/api/flowcollector/v1beta2"
+	"github.com/netobserv/netobserv-operator/internal/pkg/test"
 )
 
 // nolint:cyclop
@@ -198,9 +198,10 @@ func flowCollectorIsoSpecs() {
 				},
 			},
 			Kafka: flowslatest.FlowCollectorKafka{
-				Address: "http://kafka",
-				Topic:   "topic",
-				TLS:     defaultTLS,
+				Address:     "http://kafka",
+				Topic:       "topic",
+				Compression: "lz4",
+				TLS:         defaultTLS,
 				SASL: flowslatest.SASLConfig{
 					Type: "Disabled",
 					ClientIDReference: flowslatest.FileReference{

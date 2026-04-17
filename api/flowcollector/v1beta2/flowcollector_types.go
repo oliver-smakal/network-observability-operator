@@ -91,13 +91,18 @@ type FlowCollectorSpec struct {
 
 	// `networkPolicy` defines network policy settings for NetObserv components isolation.
 	NetworkPolicy NetworkPolicy `json:"networkPolicy,omitempty"`
+
+	// `execution` defines configuration related to the execution of the flow collection process.
+	Execution FlowCollectorExecution `json:"execution,omitempty"`
 }
 
 type NetworkPolicy struct {
 	// Deploys network policies on the namespaces used by NetObserv (main and privileged).
 	// These network policies better isolate the NetObserv components to prevent undesired connections from and to them.
-	// This option is enabled by default when using with OVNKubernetes, and disabled otherwise (it has not been tested with other CNIs).
-	// When disabled, you can manually create the network policies for the NetObserv components.
+	// Because it cannot be tested with all CNIs, this option is only enabled by default when NetObserv runs in a known
+	// supported environment, and it is disabled by default otherwise.
+	// When disabled, it is highly recommended to create network policies manually, to prevent undesired accesses.
+	// More information: https://github.com/netobserv/netobserv-operator/blob/main/docs/NetworkPolicy.md.
 	// +optional
 	Enable *bool `json:"enable,omitempty"`
 
@@ -183,7 +188,8 @@ type FlowCollectorIPFIX struct {
 // - `EbpfManager`, to enable using eBPF Manager to manage NetObserv eBPF programs. [Unsupported (*)].<br>
 // - `UDNMapping`, to enable interfaces mapping to UDN.<br>
 // - `IPSec`, to track flows between nodes with IPsec encryption.<br>
-// +kubebuilder:validation:Enum:="PacketDrop";"DNSTracking";"FlowRTT";"NetworkEvents";"PacketTranslation";"EbpfManager";"UDNMapping";"IPSec"
+// - `TLSTracking`, to track TLS usage.<br>
+// +kubebuilder:validation:Enum:="PacketDrop";"DNSTracking";"FlowRTT";"NetworkEvents";"PacketTranslation";"EbpfManager";"UDNMapping";"IPSec";"TLSTracking"
 type AgentFeature string
 
 const (
@@ -195,6 +201,7 @@ const (
 	EbpfManager       AgentFeature = "EbpfManager"
 	UDNMapping        AgentFeature = "UDNMapping"
 	IPSec             AgentFeature = "IPSec"
+	TLSTracking       AgentFeature = "TLSTracking"
 )
 
 // Name of an eBPF agent alert.
@@ -399,6 +406,7 @@ type FlowCollectorEBPF struct {
 	// This feature requires mounting the kernel debug filesystem, so the eBPF agent pods must run as privileged via `spec.agent.ebpf.privileged`.
 	// It requires using the OVN-Kubernetes network plugin with the Observability feature. <br>
 	// - `IPSec`, to track flows between nodes with IPsec encryption. <br>
+	// - `TLSTracking`, to track TLS usage. <br>
 	// +optional
 	Features []AgentFeature `json:"features,omitempty"`
 
@@ -423,7 +431,15 @@ type FlowCollectorKafka struct {
 	// Kafka topic to use. It must exist. NetObserv does not create it.
 	Topic string `json:"topic"`
 
-	// TLS client configuration. When using TLS, verify that the address matches the Kafka port used for TLS, generally 9093.
+	// +kubebuilder:validation:Enum:="none";"gzip";"snappy";"lz4";"zstd"
+	// +kubebuilder:default:="lz4"
+	// Compression codec to use when producing messages to Kafka.
+	// Accepted values are: `none`, `gzip`, `snappy`, `lz4` (default), `zstd`.
+	// +optional
+	Compression string `json:"compression,omitempty"`
+
+	// TLS and mTLS client configuration. When using TLS, verify that the address matches the Kafka port used for TLS, generally 9093.
+	// We recommend the use of mTLS for higher security standards.
 	// +optional
 	TLS ClientTLS `json:"tls"`
 
@@ -516,12 +532,13 @@ type FlowCollectorOpenTelemetry struct {
 	Metrics FlowCollectorOpenTelemetryMetrics `json:"metrics"`
 }
 
-type ServerTLSConfigType string
+type TLSConfigType string
 
 const (
-	ServerTLSDisabled ServerTLSConfigType = "Disabled"
-	ServerTLSProvided ServerTLSConfigType = "Provided"
-	ServerTLSAuto     ServerTLSConfigType = "Auto"
+	TLSDisabled TLSConfigType = "Disabled"
+	TLSProvided TLSConfigType = "Provided"
+	TLSAuto     TLSConfigType = "Auto"
+	TLSAutoMTLS TLSConfigType = "Auto-mTLS"
 )
 
 // `ServerTLS` define the TLS configuration, server side
@@ -534,7 +551,7 @@ type ServerTLS struct {
 	// +kubebuilder:validation:Enum:="Disabled";"Provided";"Auto"
 	// +kubebuilder:validation:Required
 	//+kubebuilder:default:="Disabled"
-	Type ServerTLSConfigType `json:"type,omitempty"`
+	Type TLSConfigType `json:"type,omitempty"`
 
 	// TLS configuration when `type` is set to `Provided`.
 	// +optional
@@ -547,7 +564,22 @@ type ServerTLS struct {
 
 	// Reference to the CA file when `type` is set to `Provided`.
 	// +optional
-	ProvidedCaFile *FileReference `json:"providedCaFile,omitempty"`
+	ProvidedCAFile *FileReference `json:"providedCaFile,omitempty"`
+}
+
+// `ClientServerTLS` define the TLS configuration for both client and server sides
+type ClientServerTLS struct {
+	// TLS client certificate reference, used for mTLS. Leave unset for simple TLS.
+	// +optional
+	ClientCert *CertificateReference `json:"clientCert,omitempty"`
+
+	// TLS server certificate reference.
+	// +optional
+	ServerCert *CertificateReference `json:"serverCert,omitempty"`
+
+	// Reference to the CA file.
+	// +optional
+	CAFile *FileReference `json:"caFile,omitempty"`
 }
 
 // `MetricsServerConfig` define the metrics server endpoint configuration for Prometheus scraper
@@ -563,8 +595,8 @@ type MetricsServerConfig struct {
 	TLS ServerTLS `json:"tls"`
 }
 
-// Metric name. More information in https://github.com/netobserv/network-observability-operator/blob/main/docs/Metrics.md.
-// +kubebuilder:validation:Enum:="namespace_egress_bytes_total";"namespace_egress_packets_total";"namespace_ingress_bytes_total";"namespace_ingress_packets_total";"namespace_flows_total";"node_egress_bytes_total";"node_egress_packets_total";"node_ingress_bytes_total";"node_ingress_packets_total";"node_flows_total";"workload_egress_bytes_total";"workload_egress_packets_total";"workload_ingress_bytes_total";"workload_ingress_packets_total";"workload_flows_total";"namespace_drop_bytes_total";"namespace_drop_packets_total";"node_drop_bytes_total";"node_drop_packets_total";"workload_drop_bytes_total";"workload_drop_packets_total";"namespace_rtt_seconds";"node_rtt_seconds";"workload_rtt_seconds";"namespace_dns_latency_seconds";"node_dns_latency_seconds";"workload_dns_latency_seconds";"node_network_policy_events_total";"namespace_network_policy_events_total";"workload_network_policy_events_total";"node_ipsec_flows_total";"node_to_node_ingress_flows_total"
+// Metric name. More information in https://github.com/netobserv/netobserv-operator/blob/main/docs/Metrics.md.
+// +kubebuilder:validation:Enum:="namespace_egress_bytes_total";"namespace_egress_packets_total";"namespace_ingress_bytes_total";"namespace_ingress_packets_total";"namespace_flows_total";"node_egress_bytes_total";"node_egress_packets_total";"node_ingress_bytes_total";"node_ingress_packets_total";"node_flows_total";"workload_egress_bytes_total";"workload_egress_packets_total";"workload_ingress_bytes_total";"workload_ingress_packets_total";"workload_flows_total";"namespace_drop_bytes_total";"namespace_drop_packets_total";"node_drop_bytes_total";"node_drop_packets_total";"workload_drop_bytes_total";"workload_drop_packets_total";"namespace_rtt_seconds";"node_rtt_seconds";"workload_rtt_seconds";"namespace_dns_latency_seconds";"node_dns_latency_seconds";"workload_dns_latency_seconds";"node_network_policy_events_total";"namespace_network_policy_events_total";"workload_network_policy_events_total";"node_ipsec_flows_total";"namespace_ipsec_flows_total";"workload_ipsec_flows_total";"node_to_node_ingress_flows_total"
 type FLPMetric string
 
 // `FLPMetrics` define the desired FLP configuration regarding metrics
@@ -582,20 +614,20 @@ type FLPMetrics struct {
 	// `workload_egress_bytes_total`, `namespace_drop_packets_total` (when `PacketDrop` feature is enabled),
 	// `namespace_rtt_seconds` (when `FlowRTT` feature is enabled), `namespace_dns_latency_seconds` (when `DNSTracking` feature is enabled),
 	// `namespace_network_policy_events_total` (when `NetworkEvents` feature is enabled).
-	// More information, with full list of available metrics: https://github.com/netobserv/network-observability-operator/blob/main/docs/Metrics.md
+	// More information, with full list of available metrics: https://github.com/netobserv/netobserv-operator/blob/main/docs/Metrics.md
 	// +optional
 	IncludeList *[]FLPMetric `json:"includeList,omitempty"`
 
 	// `disableAlerts` is a list of alert groups that should be disabled from the default set of alerts.
 	// Possible values are: `NetObservNoFlows`, `NetObservLokiError`, `PacketDropsByKernel`, `PacketDropsByDevice`, `IPsecErrors`, `NetpolDenied`,
 	// `LatencyHighTrend`, `DNSErrors`, `DNSNxDomain`, `ExternalEgressHighTrend`, `ExternalIngressHighTrend`, `Ingress5xxErrors`, `IngressHTTPLatencyTrend`.
-	// More information on alerts: https://github.com/netobserv/network-observability-operator/blob/main/docs/HealthRules.md
+	// More information on alerts: https://github.com/netobserv/netobserv-operator/blob/main/docs/HealthRules.md
 	// +optional
 	DisableAlerts []HealthRuleTemplate `json:"disableAlerts"`
 
 	// `healthRules` is a list of health rules to be created for Prometheus, organized by templates and variants.
 	// Each health rule can be configured to generate either alerts or recording rules based on the mode field.
-	// More information on health rules: https://github.com/netobserv/network-observability-operator/blob/main/docs/HealthRules.md
+	// More information on health rules: https://github.com/netobserv/netobserv-operator/blob/main/docs/HealthRules.md
 	// +optional
 	HealthRules *[]FLPHealthRule `json:"healthRules"`
 }
@@ -706,6 +738,10 @@ type FlowCollectorFLP struct {
 	// Global configuration managing FlowCollectorSlices custom resources.
 	//+optional
 	SlicesConfig *SlicesConfig `json:"slicesConfig,omitempty"`
+
+	// Service configuration, only used when `spec.deploymentModel` is `Service`.
+	// +optional
+	Service *ProcessorServiceConfig `json:"service,omitempty"`
 
 	// `advanced` allows setting some aspects of the internal configuration of the flow processor.
 	// This section is aimed mostly for debugging and fine-grained performance optimizations,
@@ -1064,6 +1100,7 @@ type PrometheusQuerier struct {
 	// such as getting per-pod information or viewing raw flows.
 	// If both Prometheus and Loki are enabled, Prometheus takes precedence and Loki is used as a fallback for queries that Prometheus cannot handle.
 	// If they are both disabled, the Console plugin is not deployed.
+	//+kubebuilder:default:=true
 	Enable *bool `json:"enable,omitempty"`
 
 	// `mode` must be set according to the type of Prometheus installation that stores NetObserv metrics:<br>
@@ -1094,7 +1131,7 @@ type FlowCollectorConsolePlugin struct {
 	// Deploy as a standalone console, instead of a plugin of the OpenShift Console.
 	// This is not recommended when using with OpenShift, as it doesn't provide an integrated experience.
 	// [Unsupported (*)].
-	Standalone bool `json:"standalone,omitempty"`
+	Standalone *bool `json:"standalone,omitempty"`
 
 	//+kubebuilder:validation:Minimum=0
 	//+kubebuilder:default:=1
@@ -1390,6 +1427,7 @@ type AdvancedProcessorConfig struct {
 	// Defines secondary networks to be checked for resources identification.
 	// To guarantee a correct identification, indexed values must form an unique identifier across the cluster.
 	// If the same index is used by several resources, those resources might be incorrectly labeled.
+	// If not provided and `spec.agent.ebpf.privileged` is `true`, secondary networks are detected automatically.
 	// +optional
 	SecondaryNetworks []SecondaryNetwork `json:"secondaryNetworks,omitempty"`
 }
@@ -1405,8 +1443,8 @@ const (
 )
 
 type SecondaryNetwork struct {
-	// `name` should match the network name as visible in the pods annotation 'k8s.v1.cni.cncf.io/network-status'.
-	// +kubebuilder:validation:Required
+	// Deprecated: `name` is unused.
+	// +optional
 	Name string `json:"name,omitempty"`
 
 	// `index` is a list of fields to use for indexing the pods. They should form a unique Pod identifier across the cluster.
@@ -1510,6 +1548,23 @@ type SubnetLabel struct {
 	Name string `json:"name,omitempty"`
 }
 
+type ProcessorServiceConfig struct {
+	// Select the type of TLS configuration:<br>
+	// - `Disabled` to not configure TLS for the endpoint. Disabling TLS results in a less secure deployment model.<br>
+	// - `Provided` to manually provide the key and certificate references.<br>
+	// - `Auto` (default) to enable automatically based on the running environment.<br>
+	// - `Auto-mTLS` to preconfigure mTLS. [Unsupported (*)].<br>
+	// See also: https://github.com/netobserv/netobserv-operator/blob/main/docs/TLS.md.
+	// +kubebuilder:validation:Enum:="Disabled";"Provided";"Auto";"Auto-mTLS"
+	// +kubebuilder:validation:Required
+	// +kubebuilder:default:="Auto"
+	TLSType TLSConfigType `json:"tlsType,omitempty"`
+
+	// TLS or mTLS configuration when `type` is set to `Provided`.
+	// +optional
+	ProvidedCertificates *ClientServerTLS `json:"providedCertificates,omitempty"`
+}
+
 // Add more exporter types below
 type ExporterType string
 
@@ -1540,12 +1595,122 @@ type FlowCollectorExporter struct {
 	OpenTelemetry FlowCollectorOpenTelemetry `json:"openTelemetry,omitempty"`
 }
 
+type ExecutionMode string
+
+const (
+	Running ExecutionMode = "Running"
+	OnHold  ExecutionMode = "OnHold"
+)
+
+// `FlowCollectorExecution` defines the flow collection process execution desired state.
+type FlowCollectorExecution struct {
+	// `mode` is the flow collection process execution desired mode: `Running` or `OnHold`.
+	// When `OnHold`, the operator deletes all managed services and workloads, with the exception
+	// of the static console plugin, and the operator itself.
+	// It allows to use minimal cluster resources without losing configuration.
+	// +kubebuilder:validation:Enum:="";"Running";"OnHold"
+	// +kubebuilder:default:=Running
+	// +optional
+	Mode ExecutionMode `json:"mode"`
+}
+
+// `FlowCollectorComponentStatus` represents the status of a single operator component.
+type FlowCollectorComponentStatus struct {
+	// `state` reports the overall health of the component.
+	// +kubebuilder:validation:Enum:="Ready";"InProgress";"Failure";"Degraded";"Unknown";"Unused"
+	State string `json:"state"`
+
+	// `reason` is a one-word CamelCase reason for the component's current state.
+	// +optional
+	Reason string `json:"reason,omitempty"`
+
+	// `message` is a human-readable description of the component's current state.
+	// +optional
+	Message string `json:"message,omitempty"`
+
+	// `desiredReplicas` is the desired number of replicas (for Deployments) or nodes (for DaemonSets).
+	// +optional
+	DesiredReplicas *int32 `json:"desiredReplicas,omitempty"`
+
+	// `readyReplicas` is the number of ready replicas (for Deployments) or up-to-date nodes (for DaemonSets).
+	// +optional
+	ReadyReplicas *int32 `json:"readyReplicas,omitempty"`
+
+	// `unhealthyPodCount` is the number of pods in a degraded state (CrashLoopBackOff, OOMKilled, etc.).
+	// +optional
+	UnhealthyPodCount int32 `json:"unhealthyPodCount,omitempty"`
+
+	// `podIssues` is a summary of unhealthy pod issues (e.g., "3 pods CrashLoopBackOff: kafka connection refused").
+	// +optional
+	PodIssues string `json:"podIssues,omitempty"`
+}
+
+// `FlowCollectorExporterStatus` represents the status of a configured exporter.
+type FlowCollectorExporterStatus struct {
+	// `name` is a generated identifier for this exporter (e.g., "kafka-export-0"), derived from its type and position in spec.exporters.
+	Name string `json:"name"`
+
+	// `type` is the exporter type (Kafka, IPFIX, OpenTelemetry).
+	// +kubebuilder:validation:Enum:="Kafka";"IPFIX";"OpenTelemetry"
+	Type string `json:"type"`
+
+	// `state` reports the health of this exporter.
+	// +kubebuilder:validation:Enum:="Ready";"InProgress";"Failure";"Degraded";"Unknown"
+	State string `json:"state"`
+
+	// `reason` is a one-word CamelCase reason for the exporter's current state.
+	// +optional
+	Reason string `json:"reason,omitempty"`
+
+	// `message` is a human-readable description of the exporter's current state.
+	// +optional
+	Message string `json:"message,omitempty"`
+}
+
+// `FlowCollectorComponentsStatus` groups the status of operator-managed components.
+type FlowCollectorComponentsStatus struct {
+	// `agent` reports the status of the eBPF agent component.
+	// +optional
+	Agent *FlowCollectorComponentStatus `json:"agent,omitempty"`
+
+	// `processor` reports the status of the flowlogs-pipeline component.
+	// +optional
+	Processor *FlowCollectorComponentStatus `json:"processor,omitempty"`
+
+	// `plugin` reports the status of the console plugin component.
+	// +optional
+	Plugin *FlowCollectorComponentStatus `json:"plugin,omitempty"`
+}
+
+// `FlowCollectorIntegrationsStatus` groups the status of external integrations.
+type FlowCollectorIntegrationsStatus struct {
+	// `loki` reports the status of the Loki integration.
+	// +optional
+	Loki *FlowCollectorComponentStatus `json:"loki,omitempty"`
+
+	// `monitoring` reports the status of monitoring (dashboards, ServiceMonitor, etc.).
+	// +optional
+	Monitoring *FlowCollectorComponentStatus `json:"monitoring,omitempty"`
+
+	// `exporters` reports the status of configured exporters.
+	// +optional
+	Exporters []FlowCollectorExporterStatus `json:"exporters,omitempty"`
+}
+
 // `FlowCollectorStatus` defines the observed state of FlowCollector
 type FlowCollectorStatus struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// `conditions` represents the latest available observations of an object's state
 	Conditions []metav1.Condition `json:"conditions"`
+
+	// `components` reports the status of operator-managed components (agent, processor, plugin).
+	// +optional
+	Components *FlowCollectorComponentsStatus `json:"components,omitempty"`
+
+	// `integrations` reports the status of external integrations (Loki, monitoring, exporters).
+	// +optional
+	Integrations *FlowCollectorIntegrationsStatus `json:"integrations,omitempty"`
 
 	// Namespace where console plugin and flowlogs-pipeline have been deployed.
 	//
@@ -1556,8 +1721,10 @@ type FlowCollectorStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
-// +kubebuilder:printcolumn:name="Agent",type="string",JSONPath=`.spec.agent.type`
-// +kubebuilder:printcolumn:name="Sampling (EBPF)",type="string",JSONPath=`.spec.agent.ebpf.sampling`
+// +kubebuilder:printcolumn:name="Agent",type="string",JSONPath=`.status.components.agent.state`
+// +kubebuilder:printcolumn:name="Processor",type="string",JSONPath=`.status.components.processor.state`
+// +kubebuilder:printcolumn:name="Plugin",type="string",JSONPath=`.status.components.plugin.state`
+// +kubebuilder:printcolumn:name="Sampling",type="string",JSONPath=`.spec.agent.ebpf.sampling`
 // +kubebuilder:printcolumn:name="Deployment Model",type="string",JSONPath=`.spec.deploymentModel`
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=`.status.conditions[?(@.type=="Ready")].reason`
 // +kubebuilder:printcolumn:name="Warnings",type="string",JSONPath=`.status.conditions[?(@.type=="ConfigurationIssue")].message`

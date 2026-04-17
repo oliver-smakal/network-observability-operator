@@ -3,20 +3,21 @@ package ebpf
 import (
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"strconv"
 	"strings"
 
 	ebpfconfig "github.com/netobserv/netobserv-ebpf-agent/pkg/config"
 	ebpfmaps "github.com/netobserv/netobserv-ebpf-agent/pkg/maps"
-	flowslatest "github.com/netobserv/network-observability-operator/api/flowcollector/v1beta2"
-	"github.com/netobserv/network-observability-operator/internal/controller/constants"
-	"github.com/netobserv/network-observability-operator/internal/controller/ebpf/internal/permissions"
-	"github.com/netobserv/network-observability-operator/internal/controller/reconcilers"
-	"github.com/netobserv/network-observability-operator/internal/pkg/cluster"
-	"github.com/netobserv/network-observability-operator/internal/pkg/helper"
-	"github.com/netobserv/network-observability-operator/internal/pkg/volumes"
-	"github.com/netobserv/network-observability-operator/internal/pkg/watchers"
+	flowslatest "github.com/netobserv/netobserv-operator/api/flowcollector/v1beta2"
+	"github.com/netobserv/netobserv-operator/internal/controller/constants"
+	"github.com/netobserv/netobserv-operator/internal/controller/ebpf/internal/permissions"
+	"github.com/netobserv/netobserv-operator/internal/controller/reconcilers"
+	"github.com/netobserv/netobserv-operator/internal/pkg/cluster"
+	"github.com/netobserv/netobserv-operator/internal/pkg/helper"
+	"github.com/netobserv/netobserv-operator/internal/pkg/volumes"
+	"github.com/netobserv/netobserv-operator/internal/pkg/watchers"
 
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	v1 "k8s.io/api/apps/v1"
@@ -38,6 +39,8 @@ const (
 	envFlowsTargetHost            = "TARGET_HOST"
 	envFlowsTargetPort            = "TARGET_PORT"
 	envTargetTLSCACertPath        = "TARGET_TLS_CA_CERT_PATH"
+	envTargetTLSUserCertPath      = "TARGET_TLS_USER_CERT_PATH"
+	envTargetTLSUserKeyPath       = "TARGET_TLS_USER_KEY_PATH"
 	envGRPCReconnect              = "GRPC_RECONNECT_TIMER"
 	envGRPCReconnectRnd           = "GRPC_RECONNECT_TIMER_RANDOMIZATION"
 	envSampling                   = "SAMPLING"
@@ -53,6 +56,7 @@ const (
 	envKafkaTLSUserKeyPath        = "KAFKA_TLS_USER_KEY_PATH"
 	envKafkaEnableSASL            = "KAFKA_ENABLE_SASL"
 	envKafkaSASLType              = "KAFKA_SASL_TYPE"
+	envKafkaCompression           = "KAFKA_COMPRESSION"
 	envKafkaSASLIDPath            = "KAFKA_SASL_CLIENT_ID_PATH"
 	envKafkaSASLSecretPath        = "KAFKA_SASL_CLIENT_SECRET_PATH"
 	envLogLevel                   = "LOG_LEVEL"
@@ -71,6 +75,7 @@ const (
 	envEnableEbpfMgr              = "EBPF_PROGRAM_MANAGER_MODE"
 	envEnableUDNMapping           = "ENABLE_UDN_MAPPING"
 	envEnableIPsec                = "ENABLE_IPSEC_TRACKING"
+	envEnableTLSTracking          = "ENABLE_TLS_TRACKING"
 	envDNSTrackingPort            = "DNS_TRACKING_PORT"
 	envPreferredInterface         = "PREFERRED_INTERFACE_FOR_MAC_PREFIX"
 	envAttachMode                 = "TC_ATTACH_MODE"
@@ -134,6 +139,28 @@ func NewAgentController(common *reconcilers.Instance) *AgentController {
 func (c *AgentController) Reconcile(ctx context.Context, target *flowslatest.FlowCollector) error {
 	rlog := log.FromContext(ctx).WithName("ebpf")
 	ctx = log.IntoContext(ctx, rlog)
+
+	defer c.Status.Commit(ctx, c.Client)
+
+	err := c.reconcile(ctx, target)
+	if err != nil {
+		rlog.Error(err, "AgentController reconcile failure")
+		if !c.Status.HasFailure() {
+			reason := "AgentControllerError"
+			var ke *reconcilers.KafkaError
+			if stderrors.As(err, &ke) {
+				reason = "AgentKafkaError"
+			}
+			c.Status.SetFailure(reason, err.Error())
+		}
+		return err
+	}
+
+	return nil
+}
+
+func (c *AgentController) reconcile(ctx context.Context, target *flowslatest.FlowCollector) error {
+	rlog := log.FromContext(ctx)
 	current, err := c.current(ctx)
 	if err != nil {
 		return fmt.Errorf("fetching current eBPF agent: %w", err)
@@ -145,8 +172,22 @@ func (c *AgentController) Reconcile(ctx context.Context, target *flowslatest.Flo
 		return err
 	}
 
-	if err := c.permissions.Reconcile(ctx, &target.Spec.Agent.EBPF); err != nil {
+	if err := c.permissions.Reconcile(ctx, target); err != nil {
 		return fmt.Errorf("reconciling permissions: %w", err)
+	}
+
+	if target.Spec.OnHold() {
+		c.Status.SetUnused("FlowCollector is on hold")
+		rlog.Info("action: delete agent")
+		err = c.DeleteIfOwned(ctx, current)
+		if err != nil {
+			return err
+		}
+		err = c.DeleteIfOwned(ctx, c.promSvc)
+		if err != nil {
+			return err
+		}
+		return nil
 	}
 
 	err = c.reconcileMetricsService(ctx, &target.Spec.Agent.EBPF)
@@ -169,7 +210,7 @@ func (c *AgentController) Reconcile(ctx context.Context, target *flowslatest.Flo
 		err = c.UpdateIfOwned(ctx, current, desired)
 	default:
 		rlog.Info("action: nothing to do")
-		c.Status.CheckDaemonSetProgress(current)
+		c.Status.CheckDaemonSetHealth(ctx, c.Client, current)
 	}
 
 	if err != nil {
@@ -223,23 +264,18 @@ func (c *AgentController) desired(ctx context.Context, coll *flowslatest.FlowCol
 	}
 	advancedConfig := helper.GetAdvancedAgentConfig(coll.Spec.Agent.EBPF.Advanced)
 
-	if coll.Spec.Agent.EBPF.Metrics.Server.TLS.Type != flowslatest.ServerTLSDisabled {
+	if coll.Spec.Agent.EBPF.Metrics.Server.TLS.Type != flowslatest.TLSDisabled {
 		var promTLS *flowslatest.CertificateReference
 		switch coll.Spec.Agent.EBPF.Metrics.Server.TLS.Type {
-		case flowslatest.ServerTLSProvided:
+		case flowslatest.TLSProvided:
 			promTLS = coll.Spec.Agent.EBPF.Metrics.Server.TLS.Provided
 			if promTLS == nil {
 				rlog.Info("EBPF agent metric tls configuration set to provided but none is provided")
 			}
-		case flowslatest.ServerTLSAuto:
-			promTLS = &flowslatest.CertificateReference{
-				Type:     "secret",
-				Name:     constants.EBPFAgentMetricsSvcName,
-				CertFile: "tls.crt",
-				CertKey:  "tls.key",
-			}
-		case flowslatest.ServerTLSDisabled:
-			// show never happens added for linting purposes
+		case flowslatest.TLSAuto:
+			promTLS = helper.DefaultCertificateReference(constants.EBPFAgentMetricsSvcName, "")
+		case flowslatest.TLSDisabled, flowslatest.TLSAutoMTLS:
+			// should never happens added for linting purposes
 		}
 		cert, key := c.volumes.AddCertificate(promTLS, "prom-certs")
 		if cert != "" && key != "" {
@@ -278,6 +314,7 @@ func (c *AgentController) desired(ctx context.Context, coll *flowslatest.FlowCol
 	if coll.Spec.Agent.EBPF.IsAgentFeatureEnabled(flowslatest.PacketDrop) && !coll.Spec.Agent.EBPF.IsEbpfManagerEnabled() {
 		if !coll.Spec.Agent.EBPF.Privileged {
 			rlog.Error(fmt.Errorf("invalid configuration"), "To use PacketsDrop feature privileged mode needs to be enabled")
+			c.Status.SetDegraded("InvalidConfiguration", "PacketDrop feature requires privileged mode")
 		} else {
 			volume := corev1.Volume{
 				Name: bpfTraceMountName,
@@ -302,6 +339,7 @@ func (c *AgentController) desired(ctx context.Context, coll *flowslatest.FlowCol
 		coll.Spec.Agent.EBPF.IsAgentFeatureEnabled(flowslatest.UDNMapping) {
 		if !coll.Spec.Agent.EBPF.Privileged {
 			rlog.Error(fmt.Errorf("invalid configuration"), "To use NetworkEvents or UDNMapping features, privileged mode needs to be enabled")
+			c.Status.SetDegraded("InvalidConfiguration", "NetworkEvents/UDNMapping features require privileged mode")
 		} else {
 			hostPath := advancedConfig.Env[envOVNObservHostMountPath]
 			if hostPath == "" {
@@ -427,13 +465,14 @@ func (c *AgentController) envConfig(ctx context.Context, coll *flowslatest.FlowC
 			corev1.EnvVar{Name: envKafkaBatchSize, Value: strconv.Itoa(coll.Spec.Agent.EBPF.KafkaBatchSize)},
 			// For easier user configuration, we can assume a constant message size per flow (~100B in protobuf)
 			corev1.EnvVar{Name: envKafkaBatchMessages, Value: strconv.Itoa(coll.Spec.Agent.EBPF.KafkaBatchSize / averageMessageSize)},
+			corev1.EnvVar{Name: envKafkaCompression, Value: coll.Spec.Kafka.Compression},
 		)
 		if coll.Spec.Kafka.TLS.Enable {
 			// Annotate pod with certificate reference so that it is reloaded if modified
 			// If user cert is provided, it will use mTLS. Else, simple TLS (the userDigest and paths will be empty)
 			caDigest, userDigest, err := c.Watcher.ProcessMTLSCerts(ctx, c.Client, &coll.Spec.Kafka.TLS, c.PrivilegedNamespace())
 			if err != nil {
-				return nil, err
+				return nil, reconcilers.WrapKafkaError(err)
 			}
 			annots[watchers.Annotation("kafka-ca")] = caDigest
 			annots[watchers.Annotation("kafka-user")] = userDigest
@@ -452,7 +491,7 @@ func (c *AgentController) envConfig(ctx context.Context, coll *flowslatest.FlowC
 			// Annotate pod with secret reference so that it is reloaded if modified
 			d1, d2, err := c.Watcher.ProcessSASL(ctx, c.Client, sasl, c.PrivilegedNamespace())
 			if err != nil {
-				return nil, err
+				return nil, reconcilers.WrapKafkaError(err)
 			}
 			annots[watchers.Annotation("kafka-sd1")] = d1
 			annots[watchers.Annotation("kafka-sd2")] = d2
@@ -489,23 +528,34 @@ func (c *AgentController) envConfig(ctx context.Context, coll *flowslatest.FlowC
 				Value: strconv.Itoa(int(*advancedConfig.Port)),
 			})
 		} else {
-			skipTLS := flowslatest.IsEnvEnabled(advancedConfig.Env, "SERVER_NOTLS")
-			if !skipTLS {
+			// Service mode
+			ca, clientCert := helper.GetServiceClientTLSConfig(coll.Spec.Processor.Service, "ebpf-agent-cert", c.ClusterInfo.IsOpenShift())
+			if ca != nil {
 				// Send to FLP service using TLS
-				caConfigMapName := "flowlogs-pipeline-ca"
-				if c.ClusterInfo.IsOpenShift() {
-					caConfigMapName = "openshift-service-ca.crt"
-				}
-				tlsCfg := flowslatest.ClientTLS{
-					Enable: true,
-					CACert: flowslatest.CertificateReference{
-						Type:     flowslatest.RefTypeConfigMap,
-						Name:     caConfigMapName,
-						CertFile: "service-ca.crt",
-					},
-				}
-				caPath := c.volumes.AddCACertificate(&tlsCfg, "svc-certs")
+				caPath := c.volumes.AddVolume(ca, "netobserv-ca")
 				config = append(config, corev1.EnvVar{Name: envTargetTLSCACertPath, Value: caPath})
+				if clientCert == nil {
+					if ca.Namespace != "" {
+						// Annotate pod with CA ref
+						caDigest, err := c.Watcher.ProcessFileReference(ctx, c.Client, *ca, c.PrivilegedNamespace())
+						if err != nil {
+							return nil, err
+						}
+						annots[watchers.Annotation("tls-ca")] = caDigest
+					}
+				} else {
+					certPath, keyPath := c.volumes.AddCertificate(clientCert, "client-certs")
+					config = append(config, corev1.EnvVar{Name: envTargetTLSUserCertPath, Value: certPath})
+					config = append(config, corev1.EnvVar{Name: envTargetTLSUserKeyPath, Value: keyPath})
+
+					// Annotate pod with certificate reference so that it is reloaded if modified
+					caDigest, userDigest, err := c.Watcher.ProcessMTLSCertsFromRefs(ctx, c.Client, ca, clientCert, c.PrivilegedNamespace())
+					if err != nil {
+						return nil, err
+					}
+					annots[watchers.Annotation("mtls-ca")] = caDigest
+					annots[watchers.Annotation("mtls-user")] = userDigest
+				}
 			}
 			config = append(config,
 				corev1.EnvVar{
@@ -755,6 +805,13 @@ func getEnvConfig(coll *flowslatest.FlowCollector, cinfo *cluster.Info) []corev1
 	if coll.Spec.Agent.EBPF.IsIPSecEnabled() {
 		config = append(config, corev1.EnvVar{
 			Name:  envEnableIPsec,
+			Value: "true",
+		})
+	}
+
+	if coll.Spec.Agent.EBPF.IsTLSTrackingEnabled() {
+		config = append(config, corev1.EnvVar{
+			Name:  envEnableTLSTracking,
 			Value: "true",
 		})
 	}

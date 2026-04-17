@@ -12,17 +12,17 @@ import (
 	promConfig "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 
-	flowslatest "github.com/netobserv/network-observability-operator/api/flowcollector/v1beta2"
-	sliceslatest "github.com/netobserv/network-observability-operator/api/flowcollectorslice/v1alpha1"
-	metricslatest "github.com/netobserv/network-observability-operator/api/flowmetrics/v1alpha1"
-	"github.com/netobserv/network-observability-operator/internal/controller/constants"
-	"github.com/netobserv/network-observability-operator/internal/controller/flp/fmstatus"
-	"github.com/netobserv/network-observability-operator/internal/pkg/conversion"
-	"github.com/netobserv/network-observability-operator/internal/pkg/helper"
-	"github.com/netobserv/network-observability-operator/internal/pkg/helper/loki"
-	otelConfig "github.com/netobserv/network-observability-operator/internal/pkg/helper/otel"
-	"github.com/netobserv/network-observability-operator/internal/pkg/metrics"
-	"github.com/netobserv/network-observability-operator/internal/pkg/volumes"
+	flowslatest "github.com/netobserv/netobserv-operator/api/flowcollector/v1beta2"
+	sliceslatest "github.com/netobserv/netobserv-operator/api/flowcollectorslice/v1alpha1"
+	metricslatest "github.com/netobserv/netobserv-operator/api/flowmetrics/v1alpha1"
+	"github.com/netobserv/netobserv-operator/internal/controller/constants"
+	"github.com/netobserv/netobserv-operator/internal/controller/flp/fmstatus"
+	"github.com/netobserv/netobserv-operator/internal/pkg/conversion"
+	"github.com/netobserv/netobserv-operator/internal/pkg/helper"
+	"github.com/netobserv/netobserv-operator/internal/pkg/helper/loki"
+	otelConfig "github.com/netobserv/netobserv-operator/internal/pkg/helper/otel"
+	"github.com/netobserv/netobserv-operator/internal/pkg/metrics"
+	"github.com/netobserv/netobserv-operator/internal/pkg/volumes"
 )
 
 const (
@@ -177,17 +177,12 @@ func (b *PipelineBuilder) addEnrichStage(previous config.PipelineBuilderStage) c
 
 	// Propagate 2dary networks config
 	var secondaryNetworks []api.SecondaryNetwork
-	if b.desired.Processor.Advanced != nil && len(b.desired.Processor.Advanced.SecondaryNetworks) > 0 {
-		for _, sn := range b.desired.Processor.Advanced.SecondaryNetworks {
-			flpSN := api.SecondaryNetwork{
-				Name:  sn.Name,
-				Index: map[string]any{},
-			}
-			for _, index := range sn.Index {
-				flpSN.Index[strings.ToLower(string(index))] = nil
-			}
-			secondaryNetworks = append(secondaryNetworks, flpSN)
+	for _, sn := range b.desired.GetSecondaryIndexes() {
+		flpSN := api.SecondaryNetwork{Index: map[string]any{}}
+		for _, index := range sn.Index {
+			flpSN.Index[strings.ToLower(string(index))] = nil
 		}
+		secondaryNetworks = append(secondaryNetworks, flpSN)
 	}
 	if b.desired.Agent.EBPF.IsUDNMappingEnabled() {
 		secondaryNetworks = append(secondaryNetworks, api.SecondaryNetwork{
@@ -690,10 +685,11 @@ func (b *PipelineBuilder) addCustomExportStages(previous config.PipelineBuilderS
 
 func (b *PipelineBuilder) createKafkaWriteStage(name string, spec *flowslatest.FlowCollectorKafka, fromStage *config.PipelineBuilderStage) config.PipelineBuilderStage {
 	return fromStage.EncodeKafka(name, api.EncodeKafka{
-		Address: spec.Address,
-		Topic:   spec.Topic,
-		TLS:     getClientTLS(&spec.TLS, name, b.volumes),
-		SASL:    getSASL(&spec.SASL, name, b.volumes),
+		Address:     spec.Address,
+		Topic:       spec.Topic,
+		Compression: spec.Compression,
+		TLS:         getClientTLS(&spec.TLS, name, b.volumes),
+		SASL:        getSASL(&spec.SASL, name, b.volumes),
 	})
 }
 

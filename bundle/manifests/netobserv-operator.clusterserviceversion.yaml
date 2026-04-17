@@ -90,15 +90,15 @@ metadata:
     capabilities: Seamless Upgrades
     categories: Monitoring, Networking, Observability
     console.openshift.io/plugins: '["netobserv-plugin"]'
-    containerImage: quay.io/netobserv/network-observability-operator:1.11.0-community
-    createdAt: "2026-02-09T10:15:11Z"
+    containerImage: quay.io/netobserv/network-observability-operator:1.11.3-community
+    createdAt: "2026-04-03T08:27:44Z"
     description: Network flows collector and monitoring solution
     operatorframework.io/initialization-resource: '{"apiVersion":"flows.netobserv.io/v1beta2",
       "kind":"FlowCollector","metadata":{"name":"cluster"},"spec": {}}'
     operatorframework.io/suggested-namespace: openshift-netobserv-operator
     operators.operatorframework.io/builder: operator-sdk-v1.42.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
-    repository: https://github.com/netobserv/network-observability-operator
+    repository: https://github.com/netobserv/netobserv-operator
     support: NetObserv team
   labels:
     operatorframework.io/arch.amd64: supported
@@ -106,7 +106,7 @@ metadata:
     operatorframework.io/arch.ppc64le: supported
     operatorframework.io/arch.s390x: supported
     operatorframework.io/os.linux: supported
-  name: netobserv-operator.v1.11.0-community
+  name: netobserv-operator.v1.11.3-community
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -410,8 +410,14 @@ spec:
         path: consolePlugin.standalone
       - displayName: Unmanaged replicas
         path: consolePlugin.unmanagedReplicas
+      - displayName: Execution
+        path: execution
+      - displayName: Mode
+        path: execution.mode
       - displayName: Address
         path: kafka.address
+      - displayName: Compression
+        path: kafka.compression
       - displayName: Topic
         path: kafka.topic
       - displayName: Name
@@ -470,6 +476,46 @@ spec:
         path: processor.metrics.includeList
       - displayName: Port
         path: processor.metrics.server.port
+      - displayName: Service
+        path: processor.service
+      - displayName: Provided certificates
+        path: processor.service.providedCertificates
+      - displayName: Ca file
+        path: processor.service.providedCertificates.caFile
+      - displayName: File
+        path: processor.service.providedCertificates.caFile.file
+      - displayName: Name
+        path: processor.service.providedCertificates.caFile.name
+      - displayName: Namespace
+        path: processor.service.providedCertificates.caFile.namespace
+      - displayName: Type
+        path: processor.service.providedCertificates.caFile.type
+      - displayName: Client cert
+        path: processor.service.providedCertificates.clientCert
+      - displayName: Cert file
+        path: processor.service.providedCertificates.clientCert.certFile
+      - displayName: Cert key
+        path: processor.service.providedCertificates.clientCert.certKey
+      - displayName: Name
+        path: processor.service.providedCertificates.clientCert.name
+      - displayName: Namespace
+        path: processor.service.providedCertificates.clientCert.namespace
+      - displayName: Type
+        path: processor.service.providedCertificates.clientCert.type
+      - displayName: Server cert
+        path: processor.service.providedCertificates.serverCert
+      - displayName: Cert file
+        path: processor.service.providedCertificates.serverCert.certFile
+      - displayName: Cert key
+        path: processor.service.providedCertificates.serverCert.certKey
+      - displayName: Name
+        path: processor.service.providedCertificates.serverCert.name
+      - displayName: Namespace
+        path: processor.service.providedCertificates.serverCert.namespace
+      - displayName: Type
+        path: processor.service.providedCertificates.serverCert.type
+      - displayName: Tls type
+        path: processor.service.tlsType
       - displayName: Slices config
         path: processor.slicesConfig
       - displayName: Collection mode
@@ -524,7 +570,7 @@ spec:
       name: flowcollectorslices.flows.netobserv.io
       version: v1alpha1
     - description: '`FlowMetric` is the schema for the custom metrics API, which allows
-        to generate more metrics out of flow logs. You can find examples here: https://github.com/netobserv/network-observability-operator/tree/main/config/samples/flowmetrics'
+        to generate more metrics out of flow logs. You can find examples here: https://github.com/netobserv/netobserv-operator/tree/main/config/samples/flowmetrics'
       displayName: Flow Metric
       kind: FlowMetric
       name: flowmetrics.flows.netobserv.io
@@ -578,7 +624,7 @@ spec:
 
     ## Configuration
 
-    The `FlowCollector` resource is used to configure the operator and its managed components. A comprehensive documentation is [available here](https://github.com/netobserv/network-observability-operator/blob/1.11.0-community/docs/FlowCollector.md), and a full sample file [there](https://github.com/netobserv/network-observability-operator/blob/1.11.0-community/config/samples/flows_v1beta2_flowcollector.yaml).
+    The `FlowCollector` resource is used to configure the operator and its managed components. A comprehensive documentation is [available here](https://github.com/netobserv/netobserv-operator/blob/1.11.3-community/docs/FlowCollector.md), and a full sample file [there](https://github.com/netobserv/netobserv-operator/blob/1.11.3-community/config/samples/flows_v1beta2_flowcollector.yaml).
 
     To edit configuration in cluster, run:
 
@@ -630,11 +676,11 @@ spec:
 
     This documentation includes:
 
-    - An [overview](https://github.com/netobserv/network-observability-operator#openshift-console) of the features, with screenshots
-    - More information on [configuring metrics](https://github.com/netobserv/network-observability-operator/blob/1.11.0-community/docs/Metrics.md).
-    - A [performance](https://github.com/netobserv/network-observability-operator#performance-fine-tuning) section, for fine-tuning
-    - A [security](https://github.com/netobserv/network-observability-operator#securing-data-and-communications) section
-    - An [F.A.Q.](https://github.com/netobserv/network-observability-operator#faq--troubleshooting) section
+    - An [overview](https://github.com/netobserv/netobserv-operator#openshift-console) of the features, with screenshots
+    - More information on [configuring metrics](https://github.com/netobserv/netobserv-operator/blob/1.11.3-community/docs/Metrics.md).
+    - A [performance](https://github.com/netobserv/netobserv-operator#performance-fine-tuning) section, for fine-tuning
+    - A [security](https://github.com/netobserv/netobserv-operator#securing-data-and-communications) section
+    - An [F.A.Q.](https://github.com/netobserv/netobserv-operator#faq--troubleshooting) section
   displayName: NetObserv Operator
   icon:
   - base64data: PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDI2LjAuMiwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPgo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IgoJIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiBzdHlsZT0iZW5hYmxlLWJhY2tncm91bmQ6bmV3IDAgMCAxMDAgMTAwOyIgeG1sOnNwYWNlPSJwcmVzZXJ2ZSI+CjxzdHlsZSB0eXBlPSJ0ZXh0L2NzcyI+Cgkuc3Qwe2ZpbGw6dXJsKCNTVkdJRF8xXyk7fQoJLnN0MXtmaWxsOiNGRkZGRkY7fQoJLnN0MntvcGFjaXR5OjAuNjt9Cgkuc3Qze29wYWNpdHk6MC41O30KCS5zdDR7b3BhY2l0eTowLjQ7fQo8L3N0eWxlPgo8Zz4KCTxnPgoJCTxnPgoJCQk8cmFkaWFsR3JhZGllbnQgaWQ9IlNWR0lEXzFfIiBjeD0iMTQuNzc1OCIgY3k9Ii0yLjk3NzEiIHI9IjkxLjYyNyIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgoJCQkJPHN0b3AgIG9mZnNldD0iMCIgc3R5bGU9InN0b3AtY29sb3I6IzNDM0ZBNiIvPgoJCQkJPHN0b3AgIG9mZnNldD0iMSIgc3R5bGU9InN0b3AtY29sb3I6IzNCMDM0MCIvPgoJCQk8L3JhZGlhbEdyYWRpZW50PgoJCQk8cGF0aCBjbGFzcz0ic3QwIiBkPSJNNTAsOTljLTEzLjMsMC0yNS40LTUuMy0zNC4yLTEzLjlDNi43LDc2LjIsMSw2My43LDEsNTBDMSwyMi45LDIyLjksMSw1MCwxYzEzLjcsMCwyNi4yLDUuNywzNS4xLDE0LjgKCQkJCUM5My43LDI0LjYsOTksMzYuNyw5OSw1MEM5OSw3Ny4xLDc3LjEsOTksNTAsOTl6Ii8+CgkJPC9nPgoJCTxnPgoJCQk8Y2lyY2xlIGNsYXNzPSJzdDEiIGN4PSIzNy41IiBjeT0iODEuOSIgcj0iNSIvPgoJCTwvZz4KCQk8cGF0aCBjbGFzcz0ic3QxIiBkPSJNNDguNiw5MS45bDE4LjgtNDMuM2MtMi41LTAuMS01LTAuNy03LjItMkwzMy4yLDY4LjJsMS40LTEuOGwyMC0yNS4xYy0xLjUtMi40LTIuMy01LjEtMi4zLTcuOUw5LDUyLjIKCQkJbDQ3LjYtMjkuOWwwLDBjMC4xLTAuMSwwLjItMC4yLDAuMi0wLjJjNi4xLTYuMSwxNS45LTYuMSwyMiwwbDAuMSwwLjFjNiw2LjEsNiwxNS45LTAuMSwyMS45Yy0wLjEsMC4xLTAuMiwwLjItMC4yLDAuMmwwLDAKCQkJTDQ4LjYsOTEuOXoiLz4KCQk8ZyBjbGFzcz0ic3QyIj4KCQkJPGNpcmNsZSBjbGFzcz0ic3QxIiBjeD0iNTAuMyIgY3k9IjE0LjciIHI9IjMuMSIvPgoJCTwvZz4KCQk8ZyBjbGFzcz0ic3QzIj4KCQkJPGNpcmNsZSBjbGFzcz0ic3QxIiBjeD0iMjcuNyIgY3k9IjU4IiByPSIxLjciLz4KCQk8L2c+CgkJPGc+CgkJCTxjaXJjbGUgY2xhc3M9InN0MSIgY3g9Ijc3LjQiIGN5PSI2OS4zIiByPSIxLjciLz4KCQk8L2c+CgkJPGc+CgkJCTxjaXJjbGUgY2xhc3M9InN0MSIgY3g9IjE2LjMiIGN5PSIzNi42IiByPSIxLjciLz4KCQk8L2c+CgkJPGcgY2xhc3M9InN0NCI+CgkJCTxjaXJjbGUgY2xhc3M9InN0MSIgY3g9IjYzLjciIGN5PSI4NS45IiByPSIyLjIiLz4KCQk8L2c+CgkJPGc+CgkJCTxjaXJjbGUgY2xhc3M9InN0MSIgY3g9IjI5LjQiIGN5PSIxOS42IiByPSI0LjgiLz4KCQk8L2c+CgkJPGcgY2xhc3M9InN0MyI+CgkJCTxjaXJjbGUgY2xhc3M9InN0MSIgY3g9Ijg4IiBjeT0iNTAiIHI9IjQuOCIvPgoJCTwvZz4KCTwvZz4KPC9nPgo8L3N2Zz4K
@@ -670,6 +716,13 @@ spec:
           - get
           - list
           - watch
+        - apiGroups:
+          - ""
+          resources:
+          - events
+          verbs:
+          - create
+          - patch
         - apiGroups:
           - apiextensions.k8s.io
           resources:
@@ -958,13 +1011,13 @@ spec:
                 - /manager
                 env:
                 - name: RELATED_IMAGE_EBPF_AGENT
-                  value: quay.io/netobserv/netobserv-ebpf-agent:v1.11.0-community
+                  value: quay.io/netobserv/netobserv-ebpf-agent:v1.11.3-community
                 - name: RELATED_IMAGE_FLOWLOGS_PIPELINE
-                  value: quay.io/netobserv/flowlogs-pipeline:v1.11.0-community
+                  value: quay.io/netobserv/flowlogs-pipeline:v1.11.3-community
                 - name: RELATED_IMAGE_CONSOLE_PLUGIN
-                  value: quay.io/netobserv/network-observability-console-plugin:v1.11.0-community
+                  value: quay.io/netobserv/network-observability-console-plugin:v1.11.3-community
                 - name: RELATED_IMAGE_CONSOLE_PLUGIN_COMPAT
-                  value: quay.io/netobserv/network-observability-console-plugin:v1.11.0-community-pf4
+                  value: quay.io/netobserv/network-observability-console-plugin:v1.11.3-community-pf4
                 - name: RELATED_IMAGE_DEMO_LOKI
                   value: grafana/loki:3.5.0
                 - name: DOWNSTREAM_DEPLOYMENT
@@ -974,7 +1027,7 @@ spec:
                   valueFrom:
                     fieldRef:
                       fieldPath: metadata.namespace
-                image: quay.io/netobserv/network-observability-operator:1.11.0-community
+                image: quay.io/netobserv/network-observability-operator:1.11.3-community
                 imagePullPolicy: Always
                 livenessProbe:
                   httpGet:
@@ -1080,11 +1133,11 @@ spec:
   - observability
   links:
   - name: Project page
-    url: https://github.com/netobserv/network-observability-operator
+    url: https://github.com/netobserv/netobserv-operator
   - name: Issue tracker
-    url: https://github.com/netobserv/network-observability-operator/issues
+    url: https://github.com/netobserv/netobserv-operator/issues
   - name: Discussion board
-    url: https://github.com/netobserv/network-observability-operator/discussions
+    url: https://github.com/netobserv/netobserv-operator/discussions
   maintainers:
   - email: jpinsonn@redhat.com
     name: Julien Pinsonneau
@@ -1106,17 +1159,17 @@ spec:
     name: Red Hat
     url: https://www.redhat.com
   relatedImages:
-  - image: quay.io/netobserv/netobserv-ebpf-agent:v1.11.0-community
+  - image: quay.io/netobserv/netobserv-ebpf-agent:v1.11.3-community
     name: ebpf-agent
-  - image: quay.io/netobserv/flowlogs-pipeline:v1.11.0-community
+  - image: quay.io/netobserv/flowlogs-pipeline:v1.11.3-community
     name: flowlogs-pipeline
-  - image: quay.io/netobserv/network-observability-console-plugin:v1.11.0-community
+  - image: quay.io/netobserv/network-observability-console-plugin:v1.11.3-community
     name: console-plugin
-  - image: quay.io/netobserv/network-observability-console-plugin:v1.11.0-community-pf4
+  - image: quay.io/netobserv/network-observability-console-plugin:v1.11.3-community-pf4
     name: console-plugin-compat
   - image: grafana/loki:3.5.0
     name: demo-loki
-  version: 1.11.0-community
+  version: 1.11.3-community
   webhookdefinitions:
   - admissionReviewVersions:
     - v1

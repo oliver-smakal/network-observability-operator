@@ -14,13 +14,26 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
-
-	"github.com/netobserv/network-observability-operator/internal/pkg/cluster"
 )
+
+type NetworkType string
+
+const (
+	OpenShiftSDN  NetworkType = "OpenShiftSDN"
+	OVNKubernetes NetworkType = "OVNKubernetes"
+	Kindnet       NetworkType = "Kindnet"
+)
+
+type clusterInfo interface {
+	IsOpenShift() bool
+	IsOpenShiftVersionAtLeast(v string) (bool, string, error)
+	GetNbNodes() (uint16, error)
+	GetCNI() (NetworkType, error)
+}
 
 var (
 	log                    = logf.Log.WithName("flowcollector-resource")
-	CurrentClusterInfo     *cluster.Info
+	CurrentClusterInfo     clusterInfo
 	needPrivileged         = []AgentFeature{UDNMapping, NetworkEvents}
 	neededOpenShiftVersion = map[AgentFeature]string{
 		PacketDrop:    "4.14.0",
@@ -98,10 +111,10 @@ func (v *validator) validateNetPol() {
 		cni, err := CurrentClusterInfo.GetCNI()
 		if err != nil {
 			v.warnings = append(v.warnings, fmt.Sprintf("Could not detect CNI: %s", err.Error()))
-		} else if cni == cluster.OpenShiftSDN && v.fc.NetworkPolicy.Enable != nil && *v.fc.NetworkPolicy.Enable {
+		} else if cni == OpenShiftSDN && v.fc.NetworkPolicy.Enable != nil && *v.fc.NetworkPolicy.Enable {
 			v.warnings = append(v.warnings, "OpenShiftSDN detected with unsupported setting: spec.networkPolicy.enable; this setting will be ignored; to remove this warning set spec.networkPolicy.enable to false.")
-		} else if cni != cluster.OVNKubernetes && v.fc.DeployNetworkPolicyOtherCNI() {
-			v.warnings = append(v.warnings, "Network policy is enabled via spec.networkPolicy.enable, despite not running OVN-Kubernetes: this configuration has not been tested; to remove this warning set spec.networkPolicy.enable to false.")
+		} else if cni == "" && v.fc.DeployNetworkPolicy(false) {
+			v.warnings = append(v.warnings, "Network policy is enabled via spec.networkPolicy.enable, despite running on an unknown CNI: this configuration has not been tested; to remove this warning set spec.networkPolicy.enable to false.")
 		}
 	} else {
 		v.warnings = append(v.warnings, "Unknown environment, cannot detect the CNI in use")
@@ -247,6 +260,7 @@ func (v *validator) validateFLP() {
 	v.validateFLPFilters()
 	v.validateFLPAlerts()
 	v.validateFLPMetricsForAlerts()
+	v.validateFLPTLS()
 }
 
 func (v *validator) validateScheduling() {
@@ -417,6 +431,27 @@ func (v *validator) validateFLPMetricsForAlerts() {
 					)
 				}
 			}
+		}
+	}
+}
+
+func (v *validator) validateFLPTLS() {
+	if v.fc.DeploymentModel == DeploymentModelService && v.fc.Processor.Service != nil && v.fc.Processor.Service.TLSType == TLSProvided {
+		if v.fc.Processor.Service.ProvidedCertificates == nil {
+			v.errors = append(
+				v.errors,
+				errors.New("missing configuration in spec.processor.providedCertificates despite spec.processor.tlsType being set to Provided"),
+			)
+		} else if v.fc.Processor.Service.ProvidedCertificates.CAFile == nil {
+			v.errors = append(
+				v.errors,
+				errors.New("missing configuration in spec.processor.providedCertificates.caFile despite spec.processor.tlsType being set to Provided"),
+			)
+		} else if v.fc.Processor.Service.ProvidedCertificates.ServerCert == nil {
+			v.errors = append(
+				v.errors,
+				errors.New("missing configuration in spec.processor.providedCertificates.serverCert despite spec.processor.tlsType being set to Provided"),
+			)
 		}
 	}
 }

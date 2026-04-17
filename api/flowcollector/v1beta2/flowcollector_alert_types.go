@@ -49,7 +49,7 @@ type FLPHealthRule struct {
 	// Possible values are: `PacketDropsByKernel`, `PacketDropsByDevice`, `IPsecErrors`, `NetpolDenied`,
 	// `LatencyHighTrend`, `DNSErrors`, `DNSNxDomain`, `ExternalEgressHighTrend`, `ExternalIngressHighTrend`, `Ingress5xxErrors`, `IngressHTTPLatencyTrend`.
 	// Note: `NetObservNoFlows` and `NetObservLokiError` are alert-only and cannot be used as health rules.
-	// More information on health rules: https://github.com/netobserv/network-observability-operator/blob/main/docs/HealthRules.md
+	// More information on health rules: https://github.com/netobserv/netobserv-operator/blob/main/docs/HealthRules.md
 	// +kubebuilder:validation:Enum:="PacketDropsByKernel";"PacketDropsByDevice";"IPsecErrors";"NetpolDenied";"LatencyHighTrend";"DNSErrors";"DNSNxDomain";"ExternalEgressHighTrend";"ExternalIngressHighTrend";"Ingress5xxErrors";"IngressHTTPLatencyTrend"
 	// +required
 	Template HealthRuleTemplate `json:"template,omitempty"`
@@ -125,7 +125,7 @@ func (s *FlowCollectorSpec) GetIncludeList() []string {
 			list = append(list, string(m))
 		}
 	}
-	if !s.Agent.EBPF.IsPktDropEnabled() {
+	if !s.Agent.EBPF.IsPktDropEnabled() && !s.Agent.EBPF.IsNetworkEventsEnabled() {
 		list = removeMetricsByPattern(list, "_drop_")
 	}
 	if !s.Agent.EBPF.IsFlowRTTEnabled() {

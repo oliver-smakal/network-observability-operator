@@ -6,8 +6,8 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	flowslatest "github.com/netobserv/network-observability-operator/api/flowcollector/v1beta2"
-	"github.com/netobserv/network-observability-operator/internal/controller/constants"
+	flowslatest "github.com/netobserv/netobserv-operator/api/flowcollector/v1beta2"
+	"github.com/netobserv/netobserv-operator/internal/controller/constants"
 )
 
 type VolumeInfo struct {
@@ -49,7 +49,7 @@ func (b *Builder) AddCertificate(ref *flowslatest.CertificateReference, volumeNa
 func (b *Builder) AddVolume(config *flowslatest.FileReference, volumeName string) string {
 	vol, vm := buildVolumeAndMount(config.Type, config.Name, volumeName)
 	b.insertOrReplace(&VolumeInfo{Volume: vol, Mount: vm})
-	return path.Join("var", volumeName, config.File)
+	return path.Join("/var", volumeName, config.File)
 }
 
 // AddToken will add a volume + volume mount for a service account token if defined

@@ -10,15 +10,15 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	flowslatest "github.com/netobserv/network-observability-operator/api/flowcollector/v1beta2"
-	sliceslatest "github.com/netobserv/network-observability-operator/api/flowcollectorslice/v1alpha1"
-	metricslatest "github.com/netobserv/network-observability-operator/api/flowmetrics/v1alpha1"
-	"github.com/netobserv/network-observability-operator/internal/controller/constants"
-	"github.com/netobserv/network-observability-operator/internal/controller/reconcilers"
-	"github.com/netobserv/network-observability-operator/internal/pkg/helper"
-	"github.com/netobserv/network-observability-operator/internal/pkg/manager/status"
-	"github.com/netobserv/network-observability-operator/internal/pkg/metrics/alerts"
-	"github.com/netobserv/network-observability-operator/internal/pkg/resources"
+	flowslatest "github.com/netobserv/netobserv-operator/api/flowcollector/v1beta2"
+	sliceslatest "github.com/netobserv/netobserv-operator/api/flowcollectorslice/v1alpha1"
+	metricslatest "github.com/netobserv/netobserv-operator/api/flowmetrics/v1alpha1"
+	"github.com/netobserv/netobserv-operator/internal/controller/constants"
+	"github.com/netobserv/netobserv-operator/internal/controller/reconcilers"
+	"github.com/netobserv/netobserv-operator/internal/pkg/helper"
+	"github.com/netobserv/netobserv-operator/internal/pkg/manager/status"
+	"github.com/netobserv/netobserv-operator/internal/pkg/metrics/alerts"
+	"github.com/netobserv/netobserv-operator/internal/pkg/resources"
 )
 
 type monolithReconciler struct {
@@ -78,13 +78,17 @@ func (r *monolithReconciler) reconcile(ctx context.Context, desired *flowslatest
 		return err
 	}
 
+	if desired.Spec.OnHold() {
+		r.Status.SetUnused("FlowCollector is on hold")
+		r.Managed.TryDeleteAll(ctx)
+		return nil
+	}
+
 	if desired.Spec.UseKafka() {
 		r.Status.SetUnused("Monolith only used without Kafka")
 		r.Managed.TryDeleteAll(ctx)
 		return nil
 	}
-
-	r.Status.SetReady() // will be overidden if necessary, as error or pending
 
 	builder, err := newMonolithBuilder(r.Instance, &desired.Spec, flowMetrics, fcSlices, detectedSubnets)
 	if err != nil {

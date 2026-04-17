@@ -3,7 +3,7 @@ package v1beta2
 import (
 	"strconv"
 
-	"github.com/netobserv/network-observability-operator/internal/controller/constants"
+	"github.com/netobserv/netobserv-operator/internal/controller/constants"
 )
 
 func (spec *FlowCollectorSpec) GetNamespace() string {
@@ -11,6 +11,10 @@ func (spec *FlowCollectorSpec) GetNamespace() string {
 		return spec.Namespace
 	}
 	return constants.DefaultOperatorNamespace
+}
+
+func (spec *FlowCollectorSpec) OnHold() bool {
+	return spec.Execution.Mode == OnHold
 }
 
 func (spec *FlowCollectorSpec) GetSampling() int {
@@ -51,10 +55,16 @@ func (spec *FlowCollectorSpec) UsePrometheus() bool {
 	return spec.Prometheus.Querier.Enable == nil || *spec.Prometheus.Querier.Enable
 }
 
-func (spec *FlowCollectorSpec) UseConsolePlugin() bool {
+func (spec *FlowCollectorSpec) UseWebConsole() bool {
 	return (spec.UseLoki() || spec.UsePrometheus()) &&
 		// nil should fallback to default value, which is "true"
 		(spec.ConsolePlugin.Enable == nil || *spec.ConsolePlugin.Enable)
+}
+
+func (spec *FlowCollectorSpec) UseStandaloneConsole(hasPluginAPI bool) bool {
+	// defaults to true if there's no plugin API, false otherwise
+	return (spec.ConsolePlugin.Standalone != nil && *spec.ConsolePlugin.Standalone ||
+		spec.ConsolePlugin.Standalone == nil && !hasPluginAPI)
 }
 
 func (spec *FlowCollectorSpec) UseHostNetwork() bool {
@@ -109,6 +119,10 @@ func (spec *FlowCollectorEBPF) IsIPSecEnabled() bool {
 	return spec.IsAgentFeatureEnabled(IPSec)
 }
 
+func (spec *FlowCollectorEBPF) IsTLSTrackingEnabled() bool {
+	return spec.IsAgentFeatureEnabled(TLSTracking)
+}
+
 func (spec *FlowCollectorEBPF) IsEBPFMetricsEnabled() bool {
 	return spec.Metrics.Enable == nil || *spec.Metrics.Enable
 }
@@ -149,8 +163,18 @@ func (spec *FlowCollectorFLP) IsSubnetLabelsEnabled() bool {
 	return spec.HasAutoDetectOpenShiftNetworks() || len(spec.SubnetLabels.CustomLabels) > 0
 }
 
-func (spec *FlowCollectorFLP) HasSecondaryIndexes() bool {
-	return spec.Advanced != nil && len(spec.Advanced.SecondaryNetworks) > 0
+func (spec *FlowCollectorSpec) GetSecondaryIndexes() []SecondaryNetwork {
+	if spec.Processor.Advanced != nil && len(spec.Processor.Advanced.SecondaryNetworks) > 0 {
+		return spec.Processor.Advanced.SecondaryNetworks
+	}
+	if spec.Agent.EBPF.Privileged {
+		// Turn-on auto-detection in FLP by interface+MAC or interface+IP
+		return []SecondaryNetwork{
+			{Index: []SecondaryNetworkIndex{SecondaryNetworkIndexByInterface, SecondaryNetworkIndexByIP}},
+			{Index: []SecondaryNetworkIndex{SecondaryNetworkIndexByInterface, SecondaryNetworkIndexByMAC}},
+		}
+	}
+	return nil
 }
 
 func (spec *FlowCollectorFLP) HasAutoDetectOpenShiftNetworks() bool {
@@ -177,11 +201,10 @@ func (spec *FlowCollectorFLP) GetMetricsPort() int32 {
 	return port
 }
 
-func (spec *FlowCollectorSpec) DeployNetworkPolicyOVN() bool {
-	return spec.NetworkPolicy.Enable == nil || *spec.NetworkPolicy.Enable
-}
-
-func (spec *FlowCollectorSpec) DeployNetworkPolicyOtherCNI() bool {
+func (spec *FlowCollectorSpec) DeployNetworkPolicy(trueByDefault bool) bool {
+	if trueByDefault {
+		return spec.NetworkPolicy.Enable == nil || *spec.NetworkPolicy.Enable
+	}
 	return spec.NetworkPolicy.Enable != nil && *spec.NetworkPolicy.Enable
 }
 

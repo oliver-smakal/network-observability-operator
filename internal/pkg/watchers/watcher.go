@@ -14,10 +14,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	flowslatest "github.com/netobserv/network-observability-operator/api/flowcollector/v1beta2"
-	"github.com/netobserv/network-observability-operator/internal/controller/constants"
-	"github.com/netobserv/network-observability-operator/internal/pkg/helper"
-	"github.com/netobserv/network-observability-operator/internal/pkg/narrowcache"
+	flowslatest "github.com/netobserv/netobserv-operator/api/flowcollector/v1beta2"
+	"github.com/netobserv/netobserv-operator/internal/controller/constants"
+	"github.com/netobserv/netobserv-operator/internal/pkg/helper"
+	"github.com/netobserv/netobserv-operator/internal/pkg/narrowcache"
 )
 
 var (
@@ -122,6 +122,20 @@ func (w *Watcher) ProcessMTLSCerts(ctx context.Context, cl helper.Client, tls *f
 		if err != nil {
 			return "", "", err
 		}
+	}
+	return caDigest, userDigest, nil
+}
+
+func (w *Watcher) ProcessMTLSCertsFromRefs(ctx context.Context, cl helper.Client, ca *flowslatest.FileReference, cert *flowslatest.CertificateReference, targetNamespace string) (caDigest string, userDigest string, err error) {
+	caRef := w.refFromFile(ca)
+	caDigest, err = w.reconcile(ctx, cl, caRef, targetNamespace)
+	if err != nil {
+		return "", "", err
+	}
+	userRef := w.refFromCert(cert)
+	userDigest, err = w.reconcile(ctx, cl, userRef, targetNamespace)
+	if err != nil {
+		return "", "", err
 	}
 	return caDigest, userDigest, nil
 }

@@ -5,9 +5,9 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	flowslatest "github.com/netobserv/network-observability-operator/api/flowcollector/v1beta2"
-	"github.com/netobserv/network-observability-operator/internal/controller/reconcilers"
-	"github.com/netobserv/network-observability-operator/internal/pkg/helper"
+	flowslatest "github.com/netobserv/netobserv-operator/api/flowcollector/v1beta2"
+	"github.com/netobserv/netobserv-operator/internal/controller/reconcilers"
+	"github.com/netobserv/netobserv-operator/internal/pkg/helper"
 
 	bpfmaniov1alpha1 "github.com/bpfman/bpfman-operator/apis/v1alpha1"
 	"github.com/sirupsen/logrus"
@@ -61,7 +61,7 @@ func (c *AgentController) bpfmanAttachNetobserv(ctx context.Context, fc *flowsla
 func prepareBpfApplication(bpfApp *bpfmaniov1alpha1.ClusterBpfApplication, fc *flowslatest.FlowCollector, netobservBCImage string) {
 	samplingValue := make([]byte, 4)
 	dnsPortValue := make([]byte, 2)
-	var enableDNSValue, enableRTTValue, enableFLowFilterValue, enableNetworkEvents, traceValue, networkEventsGroupIDValue, enablePktTranslation, enableIPSecValue []byte
+	var enableDNSValue, enableRTTValue, enableFLowFilterValue, enableNetworkEvents, traceValue, networkEventsGroupIDValue, enablePktTranslation, enableIPSecValue, enableTLSTracking []byte
 
 	binary.NativeEndian.PutUint32(samplingValue, uint32(*fc.Spec.Agent.EBPF.Sampling))
 
@@ -91,6 +91,10 @@ func prepareBpfApplication(bpfApp *bpfmaniov1alpha1.ClusterBpfApplication, fc *f
 
 	if fc.Spec.Agent.EBPF.IsIPSecEnabled() {
 		enableIPSecValue = append(enableIPSecValue, uint8(1))
+	}
+
+	if fc.Spec.Agent.EBPF.IsTLSTrackingEnabled() {
+		enableTLSTracking = append(enableTLSTracking, uint8(1))
 	}
 
 	bpfApp.Labels = map[string]string{
@@ -124,6 +128,7 @@ func prepareBpfApplication(bpfApp *bpfmaniov1alpha1.ClusterBpfApplication, fc *f
 		"network_events_monitoring_groupid": networkEventsGroupIDValue,
 		"enable_pkt_translation_tracking":   enablePktTranslation,
 		"enable_ipsec":                      enableIPSecValue,
+		"enable_tls_usage_tracking":         enableTLSTracking,
 	}
 
 	bpfApp.Spec.BpfAppCommon.ByteCode = bpfmaniov1alpha1.ByteCodeSelector{

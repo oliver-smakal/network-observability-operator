@@ -25,7 +25,7 @@ import (
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/netobserv/network-observability-operator/internal/pkg/test"
+	"github.com/netobserv/netobserv-operator/internal/pkg/test"
 )
 
 var (
@@ -51,6 +51,7 @@ var _ = Describe("FlowCollector Controller", Ordered, Serial, func() {
 	flowCollectorMinimalSpecs()
 	flowCollectorIsoSpecs()
 	flowCollectorCertificatesSpecs()
+	flowCollectorHoldModeSpecs()
 })
 
 var _ = BeforeSuite(func() {
