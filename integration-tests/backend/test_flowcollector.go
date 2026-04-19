@@ -2178,7 +2178,8 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 		g.It("Author:aramesha-NonPreRelease-Longduration-Medium-81410-NetObserv with eBPF manager [Serial][Slow]", func() {
 			g.By("Deploy eBPF manager operator")
 			// eBPF manager operator variables
-			bpfDir := compat_otp.FixturePath("testdata", "netobserv", "bpfman")
+			bpfDir, _ := filepath.Abs("./testdata")
+			bpfDir = filepath.Join(bpfDir, "netobserv", "bpfman")
 			bpfIDMS := filepath.Join(bpfDir, "image-digest-mirror-set.yaml")
 			bpfCatSrcTemplate := filepath.Join(bpfDir, "catalog-source.yaml")
 
@@ -2509,7 +2510,9 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 
 			g.BeforeEach(func() {
 				oc.CreateSpecifiedNamespaceAsAdmin(kafkaNs)
-				kafkaDir = compat_otp.FixturePath("testdata", "netobserv", "kafka")
+				kafkaDir, _ = filepath.Abs("./testdata")
+				kafkaDir = filepath.Join(kafkaDir, "netobserv", "kafka")
+
 				// Kafka NodePool path
 				kafkaNodePoolPath = filepath.Join(kafkaDir, "kafka-node-pool.yaml")
 				// Kafka Topic path
@@ -2833,7 +2836,8 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 				// virt operator vars
 				VOexisting                 = false
 				virtOperatorNS             = "openshift-cnv"
-				virtualizationDir          = compat_otp.FixturePath("testdata", "netobserv", "virtualization")
+				virtualizationDir, _       = filepath.Abs("./testdata")
+				virtualizationDir = filepath.Join(virtualizationDir, "netobserv", "virtualization")
 				kubevirtHyperconvergedPath = filepath.Join(virtualizationDir, "kubevirt-hyperconverged.yaml")
 				virtCatsrc                 = Resource{"catsrc", "redhat-operators", "openshift-marketplace"}
 				virtPackageName            = "kubevirt-hyperconverged"
@@ -2847,7 +2851,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 					CatalogSource: &virtSource,
 				}
 			)
-
+			
 			g.BeforeEach(func() {
 				clusterArch, err := oc.AsAdmin().WithoutNamespace().Run("get").Args("nodes", "-o=jsonpath={.items[0].status.nodeInfo.architecture}").Output()
 				o.Expect(err).NotTo(o.HaveOccurred())
@@ -3130,7 +3134,8 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 				var (
 					// NMstate operator vars
 					opNamespace       = "openshift-nmstate"
-					nmStateDir        = compat_otp.FixturePath("testdata", "networking", "nmstate")
+					nmStateDir, _     = filepath.Abs("./testdata")
+					nmStateDir = filepath.Join(nmStateDir, "networking", "nmstate")
 					nmstateCRTemplate = filepath.Join(nmStateDir, "nmstate-cr-template.yaml")
 					nmstateCR         = nmstateCRResource{
 						name:     "nmstate",
