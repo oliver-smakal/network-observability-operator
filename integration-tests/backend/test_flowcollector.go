@@ -2836,8 +2836,8 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 				// virt operator vars
 				VOexisting                 = false
 				virtOperatorNS             = "openshift-cnv"
-				virtualizationDir, _       = filepath.Abs("./testdata")
-				virtualizationDir = filepath.Join(virtualizationDir, "netobserv", "virtualization")
+				testdataDir, _       = filepath.Abs("./testdata")
+				virtualizationDir = filepath.Join(testdataDir, "netobserv", "virtualization")
 				kubevirtHyperconvergedPath = filepath.Join(virtualizationDir, "kubevirt-hyperconverged.yaml")
 				virtCatsrc                 = Resource{"catsrc", "redhat-operators", "openshift-marketplace"}
 				virtPackageName            = "kubevirt-hyperconverged"
@@ -3134,8 +3134,8 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 				var (
 					// NMstate operator vars
 					opNamespace       = "openshift-nmstate"
-					nmStateDir, _     = filepath.Abs("./testdata")
-					nmStateDir = filepath.Join(nmStateDir, "networking", "nmstate")
+					testdataDir, _     = filepath.Abs("./testdata")
+					nmStateDir = filepath.Join(testdataDir, "networking", "nmstate")
 					nmstateCRTemplate = filepath.Join(nmStateDir, "nmstate-cr-template.yaml")
 					nmstateCR         = nmstateCRResource{
 						name:     "nmstate",
