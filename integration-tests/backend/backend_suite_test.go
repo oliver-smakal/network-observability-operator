@@ -29,34 +29,10 @@ var _ = BeforeSuite(func() {
 	// Initialize test
 	Expect(exutil.InitTest(false)).NotTo(HaveOccurred())
 
-	// example of before suite working - check the noo exists
-	if os.Getenv("CHECK_NOO_EXISTS") == "TRUE" {
-		baseDir, _ := filePath.Abs("./testdata")
-		subscriptionDir := filePath.Join(baseDir, "subscription")
-		oc := exutil.NewCLIForMonitorTest("netobserv")
-
-		NOcatSrc := Resource{"catsrc", "netobserv-konflux-fbc", netobservNS}
-		NOSource := CatalogSourceObjects{"stable", NOcatSrc.Name, NOcatSrc.Namespace}
-
-		NO := SubscriptionObjects{
-			OperatorName:  "netobserv-operator",
-			Namespace:     netobservNS,
-			PackageName:   NOPackageName,
-			Subscription:  filePath.Join(subscriptionDir, "sub-template.yaml"),
-			OperatorGroup: filePath.Join(subscriptionDir, "allnamespace-og.yaml"),
-			CatalogSource: &NOSource,
-		}
-
-		// NetObserv-specific checks only if operator was just deployed
-		NOexisting, err := CheckOperatorStatus(oc, NO.Namespace, NO.PackageName)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(NOexisting).To(BeTrue())
-		// Verify FlowCollector API exists
-		flowcollectorAPIExists, err := isFlowCollectorAPIExists(oc)
-		Expect(flowcollectorAPIExists).To(BeTrue())
-		Expect(err).NotTo(HaveOccurred())
-	}
-
+    	var err error
+    	clusterVersion, err = GetOCPVersion(context.Background(), k8sClient)
+    	Expect(err).NotTo(HaveOccurred())
+    	GinkgoWriter.Printf("Running tests against OCP %s\n", clusterVersion.String())
 })
 
 func TestBackend(t *testing.T) {
@@ -101,7 +77,7 @@ var _ = ReportBeforeSuite(func(report Report) {
 
 var _ = ReportAfterEach(func(report SpecReport) {
 	// Only report on specs that actually ran (not skipped on via focused filter)
-	if report.State == types.SpecStateSkipped && report.Failure.Message == "" && report.RunTime <= 0{
+	if report.State == types.SpecStateSkipped && report.Failure.Message == "" && report.RunTime <= 0 {
 		return
 	}
 
