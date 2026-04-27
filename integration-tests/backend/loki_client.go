@@ -240,7 +240,7 @@ func (c *lokiClient) doRequest(path, query string, quiet bool, out interface{}) 
 		return err
 	}
 	if !quiet {
-		e2e.Logf(us)
+		e2e.Logf("%s", us)
 	}
 
 	req, err := http.NewRequest("GET", us, nil)
@@ -288,7 +288,7 @@ func (c *lokiClient) doRequest(path, query string, quiet bool, out interface{}) 
 			buf, _ := io.ReadAll(resp.Body) // nolint
 			e2e.Logf("Error response from server: %s (%v) attempts remaining: %d", string(buf), err, attempts)
 			if err := resp.Body.Close(); err != nil {
-				e2e.Logf("error closing body", err)
+				e2e.Logf("error closing body: %v", err)
 			}
 			continue
 		}
@@ -301,7 +301,7 @@ func (c *lokiClient) doRequest(path, query string, quiet bool, out interface{}) 
 
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
-			e2e.Logf("error closing body", err)
+			e2e.Logf("error closing body: %v", err)
 		}
 	}()
 	return json.NewDecoder(resp.Body).Decode(out)

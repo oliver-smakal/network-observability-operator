@@ -25,7 +25,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 		NOSource = CatalogSourceObjects{"stable", NOcatSrc.Name, NOcatSrc.Namespace}
 
 		// Template directories
-		baseDir, _           = filePath.Abs("testdata/netobserv")
+		baseDir, _           = filePath.Abs("testdata")
 		subscriptionDir      = filePath.Join(baseDir, "subscription")
 		flowFixturePath      = filePath.Join(baseDir, "flowcollector_v1beta2_template.yaml")
 		flowSliceFixturePath = filePath.Join(baseDir, "flowcollectorSlice_v1alpha1_template.yaml")

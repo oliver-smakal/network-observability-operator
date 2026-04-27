@@ -29,7 +29,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 		NOSource = CatalogSourceObjects{"stable", NOcatSrc.Name, NOcatSrc.Namespace}
 
 		// Template directories
-		baseDir, _      = filePath.Abs("testdata/netobserv")
+		baseDir, _      = filePath.Abs("testdata")
 		networkingDir   = filePath.Join(baseDir, "networking")
 		subscriptionDir = filePath.Join(baseDir, "subscription")
 		flowFixturePath = filePath.Join(baseDir, "flowcollector_v1beta2_template.yaml")
@@ -325,7 +325,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 
 	g.Context("with Loki", func() {
 		var (
-			lokiDir, _ = filePath.Abs("testdata/netobserv/loki")
+			lokiDir, _ = filePath.Abs("testdata/loki")
 			// Loki Operator variables
 			lokiPackageName = "loki-operator"
 			lokiSource      CatalogSourceObjects
@@ -2231,7 +2231,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
    SkipIfOCPBelow(4, 18)
 			g.By("Deploy eBPF manager operator")
 			// eBPF manager operator variables
-			bpfDir, _ := filePath.Abs("testdata/netobserv/bpfman")
+			bpfDir, _ := filePath.Abs("testdata/bpfman")
 			bpfIDMS := filePath.Join(bpfDir, "image-digest-mirror-set.yaml")
 			bpfCatSrcTemplate := filePath.Join(bpfDir, "catalog-source.yaml")
 
@@ -2867,7 +2867,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 			)
 
 			g.BeforeEach(func() {
-				kafkaDir, _ = filePath.Abs("testdata/netobserv/kafka")
+				kafkaDir, _ = filePath.Abs("testdata/kafka")
 				// Kafka NodePool path
 				kafkaNodePoolPath = filePath.Join(kafkaDir, "kafka-node-pool.yaml")
 				// Kafka Topic path
@@ -3150,7 +3150,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 				// virt operator vars
 				VOexisting                 = false
 				virtOperatorNS             = "openshift-cnv"
-				virtualizationDir, _       = filePath.Abs("testdata/netobserv/virtualization")
+				virtualizationDir, _       = filePath.Abs("testdata/virtualization")
 				kubevirtHyperconvergedPath = filePath.Join(virtualizationDir, "kubevirt-hyperconverged.yaml")
 				virtCatsrc                 = Resource{"catsrc", "redhat-operators", "openshift-marketplace"}
 				virtPackageName            = "kubevirt-hyperconverged"

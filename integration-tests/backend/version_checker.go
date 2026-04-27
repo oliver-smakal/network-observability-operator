@@ -1,15 +1,12 @@
 package e2etests
 
 import (
-    "context"
     "fmt"
     "strconv"
     "strings"
     
     . "github.com/onsi/ginkgo/v2"
-    configv1 "github.com/openshift/api/config/v1"
-    "k8s.io/apimachinery/pkg/types"
-    "sigs.k8s.io/controller-runtime/pkg/client"
+     exutil "github.com/openshift/origin/test/extended/util"
 )
 
 type OCPVersion struct {
@@ -19,27 +16,36 @@ type OCPVersion struct {
 
 var clusterVersion *OCPVersion
 
-func GetOCPVersion(ctx context.Context, k8sClient client.Client) (*OCPVersion, error) {
+// Will run 1 specs
+// vesionstring:  '4.20.0-0.nightly-2026-04-22-115050'
+// parts:  ['4 20 0-0 nightly-2026-04-22-115050']
+// Detected OCP 0.20
+
+func GetOCPVersion(oc *exutil.CLI,) (*OCPVersion, error) {
+
     if clusterVersion != nil {
         return clusterVersion, nil
     }
-    
-    cv := &configv1.ClusterVersion{}
-    err := k8sClient.Get(ctx, types.NamespacedName{Name: "version"}, cv)
+
+    version, err := oc.AsAdmin().WithoutNamespace().Run("get").Args("clusterversion", "-o=jsonpath={.items[0].status.desired.version}").Output()
     if err != nil {
         return nil, err
     }
-    
-    version := cv.Status.Desired.Version
+
+    fmt.Println("vesionstring: ", version)
     parts := strings.Split(version, ".")
+    fmt.Println("parts: ", parts)
     if len(parts) < 2 {
         return nil, fmt.Errorf("invalid version: %s", version)
     }
     
     major, _ := strconv.Atoi(parts[0])
+    fmt.Println("converted ", parts[0], "to",  major)
     minor, _ := strconv.Atoi(parts[1])
+    fmt.Println("converted ", parts[1], "to",  minor)
     
     clusterVersion = &OCPVersion{Major: major, Minor: minor}
+    fmt.Println("Detected OCP", clusterVersion )
     return clusterVersion, nil
 }
 
