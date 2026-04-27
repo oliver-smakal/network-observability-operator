@@ -25,8 +25,8 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 		NOSource = CatalogSourceObjects{"stable", NOcatSrc.Name, NOcatSrc.Namespace}
 
 		// Template directories
-		baseDir              = compat_otp.FixturePath("testdata", "netobserv")
-		subscriptionDir      = compat_otp.FixturePath("testdata", "netobserv", "subscription")
+		baseDir, _           = filePath.Abs("testdata/netobserv")
+		subscriptionDir      = filePath.Join(baseDir, "subscription")
 		flowFixturePath      = filePath.Join(baseDir, "flowcollector_v1beta2_template.yaml")
 		flowSliceFixturePath = filePath.Join(baseDir, "flowcollectorSlice_v1alpha1_template.yaml")
 
@@ -52,7 +52,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 		namespace       string
 
 		// Loki Operator variables
-		lokiDir         = compat_otp.FixturePath("testdata", "netobserv", "loki")
+		lokiDir         = filePath.Join(baseDir, "loki")
 		lokiPackageName = "loki-operator"
 		lokiSource      CatalogSourceObjects
 		ls              *lokiStack
@@ -201,6 +201,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 	})
 
 	g.It("Author:aramesha-Critical-86388-Verify flowCollectorSlice collectionMode: AlwaysCollect [Serial]", func() {
+		SkipIfOCPBelow(4, 14)
 		// Test ping pods template variables
 		pingPodsTemplate := filePath.Join(baseDir, "test-ping-pods_template.yaml")
 		testPingPodsTemplate := TestPingPodsTemplate{
@@ -309,6 +310,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 	})
 
 	g.It("Author:aramesha-Critical-86388-Verify flowCollectorSlice collectionMode: AllowList [Serial]", func() {
+		SkipIfOCPBelow(4, 14)
 		// Test ping pods template variables
 		pingPodsTemplate := filePath.Join(baseDir, "test-ping-pods_template.yaml")
 		testPingPodsTemplate := TestPingPodsTemplate{
@@ -415,6 +417,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 	})
 
 	g.It("Author:aramesha-NonPreRelease-Longduration-High-87145-Verify FlowCollectorSlices multi-tenancy [Disruptive][Slow]", func() {
+		SkipIfOCPBelow(4, 14)
 		g.By("Creating test users")
 		users, usersHTpassFile, htPassSecret := getNewUser(oc, 1)
 		defer userCleanup(oc, users, usersHTpassFile, htPassSecret)

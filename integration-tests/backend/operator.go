@@ -129,7 +129,7 @@ func (so *SubscriptionObjects) SubscribeOperator(oc *exutil.CLI) {
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			e2e.Logf("The project %s is not found, create it now...", so.Namespace)
-			namespaceTemplate := compat_otp.FixturePath("testdata", "logging", "subscription", "namespace.yaml")
+			namespaceTemplate, _ := filePath.Abs("testdata/logging/subscription/namespace.yaml")
 			namespaceFile, err := processTemplate(oc, "-f", namespaceTemplate, "-p", "NAMESPACE_NAME="+so.Namespace)
 			o.Expect(err).NotTo(o.HaveOccurred())
 			err = wait.PollUntilContextTimeout(context.Background(), 5*time.Second, 120*time.Second, false, func(context.Context) (done bool, err error) {
@@ -264,7 +264,7 @@ func (ns *OperatorNamespace) DeployOperatorNamespace(oc *exutil.CLI) {
 }
 
 func generateTemplateAbsolutePath(fileName string) string {
-	testDataDir := compat_otp.FixturePath("testdata", "networking", "nmstate")
+	testDataDir, _ := filePath.Abs("testdata/networking/nmstate")
 	return filePath.Join(testDataDir, fileName)
 }
 

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	filePath "path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -557,7 +558,7 @@ func checkODF(oc *exutil.CLI) bool {
 }
 
 func createObjectBucketClaim(oc *exutil.CLI, ns, name string) error {
-	template := compat_otp.FixturePath("testdata", "logging", "odf", "objectBucketClaim.yaml")
+	template, _ := filePath.Abs("testdata/logging/odf/objectBucketClaim.yaml")
 	obc := Resource{"objectbucketclaims", name, ns}
 
 	err := obc.applyFromTemplate(oc, "-f", template, "-n", ns, "-p", "NAME="+name, "NAMESPACE="+ns)
@@ -932,7 +933,7 @@ func deployMinIO(oc *exutil.CLI) {
 		o.Expect(err).NotTo(o.HaveOccurred())
 	}
 	// deploy minIO
-	deployTemplate := compat_otp.FixturePath("testdata", "logging", "minIO", "deploy.yaml")
+	deployTemplate, _ := filePath.Abs("testdata/logging/minIO/deploy.yaml")
 	deployFile, err := processTemplate(oc, "-n", minioNS, "-f", deployTemplate, "-p", "NAMESPACE="+minioNS, "NAME=minio", "SECRET_NAME="+minioSecret)
 	defer os.Remove(deployFile)
 	o.Expect(err).NotTo(o.HaveOccurred())

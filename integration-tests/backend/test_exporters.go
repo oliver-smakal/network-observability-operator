@@ -26,8 +26,8 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 		NOSource = CatalogSourceObjects{"stable", NOcatSrc.Name, NOcatSrc.Namespace}
 
 		// Template directories
-		baseDir         = compat_otp.FixturePath("testdata", "netobserv")
-		subscriptionDir = compat_otp.FixturePath("testdata", "netobserv", "subscription")
+		baseDir, _      = filePath.Abs("testdata/netobserv")
+		subscriptionDir = filePath.Join(baseDir, "subscription")
 		flowFixturePath = filePath.Join(baseDir, "flowcollector_v1beta2_template.yaml")
 
 		// Operator namespace object
@@ -79,6 +79,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 	})
 
 	g.It("Author:aramesha-High-64156-Verify IPFIX-exporter [Serial]", func() {
+		SkipIfOCPBelow(4, 10)
 		clusterArch, err := oc.AsAdmin().WithoutNamespace().Run("get").Args("nodes", "-o=jsonpath={.items[0].status.nodeInfo.architecture}").Output()
 		o.Expect(err).NotTo(o.HaveOccurred())
 		if !strings.Contains(clusterArch, "amd64") {
@@ -158,6 +159,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 	})
 
 	g.It("Author:memodi-High-74977-Verify OTEL exporter [Serial]", func() {
+		SkipIfOCPBelow(4, 13)
 		// don't delete the OTEL Operator at the end of the test
 		g.By("Subscribe to OTEL Operator")
 		OtelNS.DeployOperatorNamespace(oc)

@@ -22,8 +22,8 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 		NOSource = CatalogSourceObjects{"stable", NOcatSrc.Name, NOcatSrc.Namespace}
 
 		// Template directories
-		baseDir         = compat_otp.FixturePath("testdata", "netobserv")
-		subscriptionDir = compat_otp.FixturePath("testdata", "netobserv", "subscription")
+		baseDir, _      = filePath.Abs("testdata/netobserv")
+		subscriptionDir = filePath.Join(baseDir, "subscription")
 		flowFixturePath = filePath.Join(baseDir, "flowcollector_v1beta2_template.yaml")
 		flowmetricsPath = filePath.Join(baseDir, "flowmetrics_v1alpha1_template.yaml")
 
@@ -71,6 +71,7 @@ var _ = g.Describe("[sig-netobserv] Network_Observability", func() {
 	})
 
 	g.It("Author:memodi-High-73539-Create custom metrics and charts [Serial]", func() {
+		SkipIfOCPBelow(4, 12)
 		namespace := oc.Namespace()
 		customMetrics := CustomMetrics{
 			Namespace: namespace,
