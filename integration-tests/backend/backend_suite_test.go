@@ -3,7 +3,6 @@ package e2etests
 import (
 	"flag"
 	"fmt"
-	"os"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -11,7 +10,6 @@ import (
 	. "github.com/onsi/gomega"
 	exutil "github.com/openshift/origin/test/extended/util"
 	e2eframework "k8s.io/kubernetes/test/e2e/framework"
-	filePath "path/filepath"
 )
 
 func init() {
@@ -29,8 +27,9 @@ var _ = BeforeSuite(func() {
 	// Initialize test
 	Expect(exutil.InitTest(false)).NotTo(HaveOccurred())
 
+	oc := exutil.NewCLIForMonitorTest("netobserv")
     	var err error
-    	clusterVersion, err = GetOCPVersion(context.Background(), k8sClient)
+    	clusterVersion, err = GetOCPVersion(oc)
     	Expect(err).NotTo(HaveOccurred())
     	GinkgoWriter.Printf("Running tests against OCP %s\n", clusterVersion.String())
 })
